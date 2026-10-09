@@ -1,0 +1,13 @@
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+*_auth*/
+*session*/
+auth_info*/
+gateway_auth/
+headless_auth/

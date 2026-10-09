@@ -1,0 +1,6 @@
+{
+  "name": "WhatsApp Direct & Script Hub",
+  "description": "Send WhatsApp messages and generate automation scripts without Meta Developer account or paid APIs using open protocols and direct dispatch.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

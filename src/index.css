@@ -1,1 +1,67 @@
 @import "tailwindcss";
+@import "@fontsource-variable/bricolage-grotesque";
+@import "@fontsource-variable/jetbrains-mono";
+
+/* Brand palette: deep navy + WhatsApp green on a light surface */
+@theme {
+  --color-navy-950: #061423;
+  --color-navy-900: #0a1f33;
+  --color-navy-800: #0f2c47;
+  --color-navy-700: #173d5f;
+  --color-navy-600: #24527a;
+  --color-wa: #25d366;
+
+  /* Typography: Bricolage Grotesque across the whole site, JetBrains Mono for code */
+  --font-sans: 'Bricolage Grotesque Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Bricolage Grotesque Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --animate-float: float 6s ease-in-out infinite;
+  --animate-float-slow: float 8s ease-in-out infinite;
+  --animate-typing: typing 1.2s ease-in-out infinite;
+  --animate-scan: scan 2.4s ease-in-out infinite;
+  --animate-scan-lg: scan-lg 2.8s ease-in-out infinite;
+
+  @keyframes scan-lg {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(212px); }
+  }
+
+  @keyframes scan {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(124px); }
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+  }
+  @keyframes typing {
+    0%, 60%, 100% { opacity: 0.25; transform: translateY(0); }
+    30% { opacity: 1; transform: translateY(-2px); }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-float, .animate-float-slow, .animate-typing, .animate-scan, .animate-scan-lg { animation: none; }
+}
+
+body {
+  background-color: #f5f8fa;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3 {
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+  letter-spacing: -0.025em;
+}
+
+/* Scrollable without a visible scrollbar (dropdown menus) */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}

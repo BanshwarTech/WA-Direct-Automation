@@ -12,25 +12,25 @@ export const getScripts = (phone: string, message: string): ScriptTemplate[] => 
       badge: 'NVIDIA AI AUTO-REPLY BOT',
       category: 'NVIDIA AI + WhatsApp',
       doesOpenWhatsAppWeb: false,
-      description: 'NVIDIA NIM API (Llama 3.3 70B / Nemotron) को WhatsApp Baileys के साथ जोड़ता है। जब भी कोई व्यक्ति आपके WhatsApp पर मैसेज भेजेगा, NVIDIA AI उसे समझकर अपने आप हिंदी, हिंग्लिश या इंग्लिश में बुद्धिमान उत्तर (Smart Auto-Reply) दे देगा! 0% WhatsApp Web, 0% Meta Account!',
+      description: 'Integrates the NVIDIA NIM API (Nemotron 3) with WhatsApp Baileys. Whenever someone sends a message to your WhatsApp, NVIDIA AI understands it and automatically sends an intelligent reply (Smart Auto-Reply) in Hindi, Hinglish, or English. 0% WhatsApp Web, 0% Meta account!',
       pros: [
-        'NVIDIA NIM AI (Llama 3.3 70B / DeepSeek R1 / Nemotron) पावर्ड ऑटो-रिप्लाई',
-        'कोई WhatsApp Web या ब्राउज़र नहीं खुलता (100% बैकग्राउंड हेडलेस)',
-        'ना Meta Developer एकाउंट, ना Twilio/Wati का मासिक शुल्क',
-        'कस्टमर सपोर्ट, लीड्स और 24/7 ऑटोमेशन के लिए सबसे बेहतरीन'
+        'Auto-reply powered by NVIDIA NIM AI (Nemotron 3 Super / Ultra)',
+        'No WhatsApp Web or browser opens (100% background, headless)',
+        'No Meta Developer account and no monthly Twilio/Wati fees',
+        'Ideal for customer support, lead handling, and 24/7 automation'
       ],
       cons: [
-        'NVIDIA NIM API Key चाहिए (build.nvidia.com से फ्री क्रेडिट्स मिलते हैं)'
+        'Requires an NVIDIA NIM API key (free credits are available at build.nvidia.com)'
       ],
       prerequisites: [
-        'Node.js 18+ कंप्यूटर या VPS पर',
-        'NVIDIA API Key (https://build.nvidia.com से फ्री प्राप्त करें)'
+        'Node.js 18+ on your computer or VPS',
+        'NVIDIA API key (get one for free at https://build.nvidia.com)'
       ],
       setupCommands: `mkdir wa-nvidia-bot\ncd wa-nvidia-bot\nnpm init -y\nnpm install @whiskeysockets/baileys qrcode-terminal pino dotenv`,
       filename: 'whatsapp_nvidia_ai_bot.js',
       code: `// ======================================================================
 // WHATSAPP DIRECT AUTOMATION + NVIDIA NIM AI BOT (NO META ACCOUNT)
-// Powered by: Baileys (Headless) + NVIDIA NIM (Llama 3.3 70B / Nemotron)
+// Powered by: Baileys (Headless) + NVIDIA NIM (Nemotron 3)
 // ======================================================================
 
 require('dotenv').config();
@@ -42,16 +42,16 @@ const {
 const qrcode = require('qrcode-terminal');
 const pino = require('pino');
 
-// 🔑 आपकी NVIDIA API Key (build.nvidia.com से प्राप्त करें)
+// 🔑 Your NVIDIA API key (get it from build.nvidia.com)
 const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY || "nvapi-YOUR_NVIDIA_API_KEY_HERE";
-const NVIDIA_MODEL = "meta/llama-3.3-70b-instruct"; // या "nvidia/llama-3.1-nemotron-70b-instruct"
+const NVIDIA_MODEL = "nvidia/nemotron-3-super-120b-a12b"; // or "nvidia/nemotron-3-ultra-550b-a55b"
 
-// 🧠 NVIDIA NIM AI API कॉल फंक्शन
+// 🧠 NVIDIA NIM AI API call function
 async function askNvidiaAI(userQuery, senderName = "User") {
-  const systemPrompt = \`आप एक अत्यंत बुद्धिमान, विनम्र और सहायक WhatsApp AI सहायक हैं।
-- उत्तर संक्षेप में, स्पष्ट और प्राकृतिक रखें (WhatsApp स्टाइल)।
-- यूजर जिस भाषा में पूछे (Hindi, Hinglish, English) उसी भाषा में उत्तर दें।
-- जरूरी बिंदुओं को *bold* करें और इमोजी का उपयुक्त उपयोग करें।\`;
+  const systemPrompt = \`You are a highly intelligent, polite, and helpful WhatsApp AI assistant.
+- Keep replies concise, clear, and natural (WhatsApp style).
+- Reply in the same language the user writes in (Hindi, Hinglish, or English).
+- Highlight key points in *bold* and use emojis appropriately.\`;
 
   try {
     const response = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
@@ -74,20 +74,20 @@ async function askNvidiaAI(userQuery, senderName = "User") {
     if (!response.ok) {
       const err = await response.text();
       console.error("❌ NVIDIA API Error:", err);
-      return "माफ़ कीजिए, AI सेवा से संपर्क नहीं हो सका।";
+      return "Sorry, we could not reach the AI service.";
     }
 
     const data = await response.json();
-    return data?.choices?.[0]?.message?.content || "नमस्ते! मैं आपकी किस प्रकार सहायता कर सकता हूँ?";
+    return data?.choices?.[0]?.message?.content || "Hello! How can I help you?";
   } catch (error) {
     console.error("❌ Fetch error:", error.message);
-    return "तकनीकी समस्या के कारण उत्तर नहीं मिल सका।";
+    return "Unable to get a reply due to a technical issue.";
   }
 }
 
-// 🚀 WhatsApp बोट शुरू करें
+// 🚀 Start the WhatsApp bot
 async function startNvidiaWhatsAppBot() {
-  console.log("⚡ WhatsApp + NVIDIA AI Bot शुरू हो रहा है...");
+  console.log("⚡ Starting WhatsApp + NVIDIA AI Bot...");
 
   const { state, saveCreds } = await useMultiFileAuthState('./nvidia_bot_session');
 
@@ -103,7 +103,7 @@ async function startNvidiaWhatsAppBot() {
     const { connection, lastDisconnect, qr } = update;
 
     if (qr) {
-      console.log('\\n📲 फोन के WhatsApp से QR कोड स्कैन करें (Settings -> Linked Devices):\\n');
+      console.log('\\n📲 Scan the QR code from WhatsApp on your phone (Settings -> Linked Devices):\\n');
       qrcode.generate(qr, { small: true });
     }
 
@@ -114,24 +114,24 @@ async function startNvidiaWhatsAppBot() {
         startNvidiaWhatsAppBot();
       }
     } else if (connection === 'open') {
-      console.log('🤖 WhatsApp + NVIDIA AI Bot सक्रिय और तैयार है!');
-      console.log('🟢 अब आने वाले हर मैसेज का उत्तर NVIDIA AI देगा!');
+      console.log('🤖 WhatsApp + NVIDIA AI Bot is active and ready!');
+      console.log('🟢 NVIDIA AI will now reply to every incoming message!');
     }
   });
 
-  // 📩 नए मैसेज आने पर इवेंट (Auto-Reply Handler)
+  // 📩 Event fired on new incoming messages (Auto-Reply Handler)
   sock.ev.on('messages.upsert', async ({ messages, type }) => {
     if (type !== 'notify') return;
 
     for (const msg of messages) {
-      // अगर मैसेज खुद हमारे द्वारा भेजा गया है तो छोड़ें
+      // Skip messages sent by ourselves
       if (msg.key.fromMe) continue;
 
       const senderJid = msg.key.remoteJid;
-      // केवल प्राइवेट चैट हैंडल करें (ग्रुप चैट के लिए @g.us चेक करें)
+      // Handle private chats only (check for @g.us to skip group chats)
       if (senderJid.endsWith('@g.us')) continue;
 
-      // मैसेज का टेक्स्ट निकालें
+      // Extract the message text
       const incomingText =
         msg.message?.conversation ||
         msg.message?.extendedTextMessage?.text ||
@@ -139,20 +139,20 @@ async function startNvidiaWhatsAppBot() {
 
       if (!incomingText.trim()) continue;
 
-      console.log(\`\\n📩 मैसेज मिला (\${senderJid}): "\${incomingText}"\`);
-      console.log("🧠 NVIDIA NIM AI से उत्तर तैयार हो रहा है...");
+      console.log(\`\\n📩 Message received (\${senderJid}): "\${incomingText}"\`);
+      console.log("🧠 Generating reply from NVIDIA NIM AI...");
 
-      // टाइपिंग इंडिकेटर दिखाएं (Typing...)
+      // Show typing indicator (Typing...)
       await sock.sendPresenceUpdate('composing', senderJid);
 
-      // NVIDIA AI से रिप्लाई प्राप्त करें
-      const aiResponse = await askNvidiaAI(incomingText, msg.pushName || "दोस्त");
+      // Get the reply from NVIDIA AI
+      const aiResponse = await askNvidiaAI(incomingText, msg.pushName || "Friend");
 
-      // WhatsApp पर उत्तर भेजें
+      // Send the reply on WhatsApp
       await sock.sendMessage(senderJid, { text: aiResponse });
-      console.log(\`📤 उत्तर भेज दिया गया: "\${aiResponse.substring(0, 50)}..."\`);
+      console.log(\`📤 Reply sent: "\${aiResponse.substring(0, 50)}..."\`);
 
-      // टाइपिंग इंडिकेटर हटाएं
+      // Clear the typing indicator
       await sock.sendPresenceUpdate('paused', senderJid);
     }
   });
@@ -167,27 +167,27 @@ startNvidiaWhatsAppBot();
       badge: 'NO BROWSER / PURE BACKGROUND',
       category: 'Headless Socket (No Browser)',
       doesOpenWhatsAppWeb: false,
-      description: 'इसमें WhatsApp Web या कोई भी ब्राउज़र स्क्रीन पर बिल्कुल नहीं खुलता! यह Node.js में सीधा WebSocket नेटवर्क पैकेट्स भेजता है। पर्दे के पीछे बैकग्राउंड में चलता है और सीधे WhatsApp सर्वर से बात करता है।',
+      description: 'Neither WhatsApp Web nor any browser opens on screen! This sends WebSocket network packets directly from Node.js. It runs silently in the background and talks straight to the WhatsApp servers.',
       pros: [
-        'WhatsApp Web या Chrome स्क्रीन पर बिल्कुल नहीं खुलता (0% Browser)',
-        'ना कोई Meta/Facebook एकाउंट, ना कोई पेड API',
-        'अल्ट्रा-फास्ट (मैसेज 0.5 सेकंड में डिलीवर)',
-        'सिस्टम रिसोर्स बेहद कम लेता है (रैम <40MB)'
+        'WhatsApp Web or Chrome never opens on screen (0% Browser)',
+        'No Meta/Facebook account and no paid API',
+        'Ultra-fast (messages delivered in 0.5 seconds)',
+        'Very low system resource usage (RAM <40MB)'
       ],
       cons: [
-        'पहली बार टर्मिनल में एक बार QR कोड स्कैन करके अपना डिवाइस लिंक करना पड़ता है (इसके बाद सेशन हमेशा सेव रहता है)'
+        'You must scan a QR code in the terminal once to link your device (the session is saved permanently afterward)'
       ],
       prerequisites: [
-        'Node.js 18+ आपके कंप्यूटर या VPS सर्वर पर',
-        'आपका सामान्य स्मार्टफोन जिसमें WhatsApp चालू हो'
+        'Node.js 18+ on your computer or VPS server',
+        'Your regular smartphone with WhatsApp installed and active'
       ],
       setupCommands: `mkdir direct-whatsapp-bot\ncd direct-whatsapp-bot\nnpm init -y\nnpm install @whiskeysockets/baileys qrcode-terminal pino`,
       filename: 'direct_send_baileys.js',
       code: `// ======================================================================
 // PURE HEADLESS DIRECT WHATSAPP SENDER (NO WHATSAPP WEB / NO BROWSER)
 // ======================================================================
-// इस स्क्रिप्ट में कोई भी ब्राउज़र या WhatsApp Web पेज नहीं खुलेगा।
-// यह बैकएंड सॉकेट के ज़रिए सीधे WhatsApp सर्वर से बात करता है।
+// This script does not open any browser or WhatsApp Web page.
+// It talks directly to the WhatsApp servers through a backend socket.
 
 const {
   default: makeWASocket,
@@ -197,20 +197,20 @@ const {
 const qrcode = require('qrcode-terminal');
 const pino = require('pino');
 
-// जिस नंबर पर भेजना है (कंट्री कोड के साथ, बिना '+' के)
+// Recipient number (with country code, without '+')
 const RECIPIENT = "${cleanPhone || '919876543210'}";
-const MESSAGE = "${escapedMessage || 'Namaste! Yeh message bina kisi WhatsApp Web browser ya Meta account ke direct background me send hua hai.'}";
+const MESSAGE = "${escapedMessage || 'Hello! This message was sent directly in the background, without any WhatsApp Web browser or Meta account.'}";
 
 async function runDirectHeadlessSender() {
   console.log('⚡ Starting Headless Direct Socket (No Browser UI)...');
 
-  // 1. स्थानीय फोल्डर में लॉगिन क्रेडेंशियल्स सेव होते हैं (ताकि बार-बार लिंक न करना पड़े)
+  // 1. Login credentials are saved in a local folder (so you don't have to link again every time)
   const { state, saveCreds } = await useMultiFileAuthState('./headless_auth');
 
-  // 2. शुद्ध हेडलेस सॉकेट कनेक्शन
+  // 2. Pure headless socket connection
   const sock = makeWASocket({
     auth: state,
-    logger: pino({ level: 'silent' }), // कोई फालतू लॉग नहीं
+    logger: pino({ level: 'silent' }), // No unnecessary logs
     printQRInTerminal: false
   });
 
@@ -219,10 +219,10 @@ async function runDirectHeadlessSender() {
   sock.ev.on('connection.update', async (update) => {
     const { connection, lastDisconnect, qr } = update;
 
-    // सिर्फ पहली बार लिंक करने के लिए टर्मिनल में QR दिखेगा
+    // The QR code is shown in the terminal only for the first-time link
     if (qr) {
       console.log('\\n======================================================');
-      console.log('📲 सिर्फ पहली बार अपने फोन से लिंक करें:');
+      console.log('📲 Link with your phone (first time only):');
       console.log('   (WhatsApp -> Settings -> Linked Devices -> Link a Device)');
       console.log('======================================================\\n');
       qrcode.generate(qr, { small: true });
@@ -242,13 +242,13 @@ async function runDirectHeadlessSender() {
       try {
         const jid = \`\${RECIPIENT}@s.whatsapp.net\`;
         
-        // सीधे बैकग्राउंड में सेंड करें (कोई वेब पेज नहीं खुलता)
+        // Send directly in the background (no web page opens)
         const sent = await sock.sendMessage(jid, { text: MESSAGE });
 
         console.log('🎉 SUCCESS! Message delivered directly in background.');
         console.log('🆔 WhatsApp Message ID:', sent.key.id);
 
-        // सेंड होने के 2 सेकंड बाद प्रोसेस बंद
+        // Exit the process 2 seconds after sending
         setTimeout(() => process.exit(0), 2000);
       } catch (err) {
         console.error('❌ Send error:', err);
@@ -266,26 +266,26 @@ runDirectHeadlessSender();
       badge: 'SELF-HOSTED PRIVATE API',
       category: 'Local REST API',
       doesOpenWhatsAppWeb: false,
-      description: 'अपने कंप्यूटर पर एक प्राइवेट बैकग्राउंड API सर्वर चलाएं। इसके बाद आप किसी भी भाषा (Python, PHP, cURL, Bash) से केवल एक HTTP POST रिक्वेस्ट भेजेंगे और बैकग्राउंड में बिना कोई ब्राउज़र खोले मैसेज चला जाएगा!',
+      description: 'Run a private background API server on your computer. Then, from any language (Python, PHP, cURL, Bash), simply send an HTTP POST request and the message is sent in the background without opening any browser!',
       pros: [
-        'WhatsApp Web का कोई निशान नहीं (Zero Browser UI)',
-        'सिर्फ एक cURL या POST रिक्वेस्ट से कभी भी मैसेज भेजें',
-        'Meta/Twilio जैसा काम, लेकिन 100% फ्री और आपके अपने सिस्टम पर'
+        'No trace of WhatsApp Web (Zero Browser UI)',
+        'Send a message at any time with just a cURL or POST request',
+        'Works like Meta/Twilio, but 100% free and on your own system'
       ],
       cons: [
-        'बैकग्राउंड में Node.js सर्वर बैकएंड चालू रहना चाहिए'
+        'The Node.js server backend must keep running in the background'
       ],
       prerequisites: [
         'Node.js 18+',
-        'Express.js और Baileys'
+        'Express.js and Baileys'
       ],
       setupCommands: `mkdir my-whatsapp-api\ncd my-whatsapp-api\nnpm init -y\nnpm install @whiskeysockets/baileys express qrcode-terminal pino`,
       filename: 'whatsapp_local_api_server.js',
       code: `// ======================================================================
 // YOUR OWN PRIVATE WHATSAPP REST API GATEWAY (100% FREE, NO META)
 // ======================================================================
-// इसे बैकग्राउंड में चलाएं। फिर curl http://localhost:4000/send-message से
-// बिना कोई ब्राउज़र या WhatsApp Web खोले सीधे मैसेज भेजें।
+// Run this in the background. Then send messages directly with curl http://localhost:4000/send-message
+// without opening any browser or WhatsApp Web.
 
 const express = require('express');
 const {
@@ -357,7 +357,7 @@ app.listen(4000, () => {
 
 /*
  * ========================================================
- * 💡 इस API को कॉल करने का तरीका (किसी भी टर्मिनल से):
+ * 💡 How to call this API (from any terminal):
  * ========================================================
  * curl -X POST http://localhost:4000/send-message \\
  *      -H "Content-Type: application/json" \\
@@ -371,19 +371,19 @@ app.listen(4000, () => {
       badge: 'DIRECT PHONE HARDWARE',
       category: 'Android Direct (ADB)',
       doesOpenWhatsAppWeb: false,
-      description: 'अगर आपको कंप्यूटर या सर्वर पर भी कुछ लिंक नहीं करना और सीधे अपने Android फोन के असली WhatsApp ऐप से मैसेज भेजना है! अपने फोन को USB या Wi-Fi डिबगिंग से जोड़ें और टर्मिनल से सीधे फोन में कमांड चलाएं। 0% WhatsApp Web!',
+      description: 'If you do not want to link anything on a computer or server and want to send messages directly from the real WhatsApp app on your Android phone! Connect your phone via USB or Wi-Fi debugging and run commands on the phone directly from the terminal. 0% WhatsApp Web!',
       pros: [
-        'WhatsApp Web का दूर-दूर तक कोई लेना-देना नहीं',
-        'आपके असली फोन का ऑफिशियल WhatsApp ऐप ही मैसेज भेजता है',
-        'कोई अकाउंट बैन होने का डर नहीं क्योंकि फोन का ओरिजिनल ऐप इस्तेमाल होता है',
-        'सिर्फ एक साधारण Bash/Python स्क्रिप्ट'
+        'Nothing to do with WhatsApp Web at all',
+        'Messages are sent by the official WhatsApp app on your real phone',
+        'No risk of an account ban because the original app on the phone is used',
+        'Just a simple Bash/Python script'
       ],
       cons: [
-        'Android फोन PC से कनेक्ट होना चाहिए (USB या Wi-Fi ADB द्वारा)'
+        'The Android phone must be connected to the PC (via USB or Wi-Fi ADB)'
       ],
       prerequisites: [
-        'Android फोन में Developer Options -> USB Debugging ऑन हो',
-        'कंप्यूटर पर ADB (Android Debug Bridge) टूल'
+        'Developer Options -> USB Debugging enabled on the Android phone',
+        'ADB (Android Debug Bridge) tool on the computer'
       ],
       setupCommands: `# Ubuntu/Debian: sudo apt install adb\n# macOS: brew install android-platform-tools\n# Windows: choco install adb (or download platform-tools)\nadb devices`,
       filename: 'send_via_android_adb.sh',
@@ -394,25 +394,25 @@ app.listen(4000, () => {
 # ======================================================================
 
 PHONE="${cleanPhone || '919876543210'}"
-MESSAGE="${escapedMessage || 'Namaste! Yeh message mere Android phone ke official app se direct bheja gaya hai.'}"
+MESSAGE="${escapedMessage || 'Hello! This message was sent directly from the official WhatsApp app on my Android phone.'}"
 
 echo "📱 Checking connected Android phone..."
 adb devices
 
-# 1. Phone की स्क्रीन ऑन करें और अनलॉक करें (अगर लॉक है)
+# 1. Turn on the phone screen and unlock it (if locked)
 adb shell input keyevent 26
 adb shell input keyevent 82
 
-# 2. फोन के असली WhatsApp ऐप में डायरेक्ट चैट खोलें (Intent)
+# 2. Open the chat directly in the real WhatsApp app on the phone (Intent)
 echo "🚀 Opening chat with +$PHONE on Android phone..."
 adb shell am start -a android.intent.action.VIEW \\
     -d "https://api.whatsapp.com/send?phone=$PHONE&text=$MESSAGE" \\
     com.whatsapp
 
-# 3. WhatsApp को लोड होने के लिए 1.5 सेकंड का इंतज़ार दें
+# 3. Wait 1.5 seconds for WhatsApp to load
 sleep 1.5
 
-# 4. WhatsApp के 'Send' बटन पर ऑटोमैटिक क्लिक करें (Enter keyevent)
+# 4. Automatically tap WhatsApp's 'Send' button (Enter keyevent)
 echo "📤 Pressing Send button on phone..."
 adb shell input keyevent 22   # Right arrow (focus send icon)
 adb shell input keyevent 66   # Enter key (Sends message)
@@ -426,18 +426,18 @@ echo "🎉 SUCCESS! Message sent directly through your phone's official WhatsApp
       badge: 'STANDALONE ON SMARTPHONE',
       category: 'Termux Direct (Mobile)',
       doesOpenWhatsAppWeb: false,
-      description: 'कंप्यूटर की भी ज़रूरत नहीं! अगर आप चाहते हैं कि स्क्रिप्ट आपके अपने Android फोन के अंदर ही चले और सीधे WhatsApp मैसेज भेज दे, तो Termux ऐप में यह 100% संभव है।',
+      description: 'No computer needed! If you want the script to run entirely inside your own Android phone and send WhatsApp messages directly, this is 100% possible with the Termux app.',
       pros: [
-        'किसी कंप्यूटर या सर्वर की ज़रूरत नहीं',
-        'सीधे मोबाइल में बैकग्राउंड में चलता है',
-        'ना WhatsApp Web, ना Meta API'
+        'No computer or server required',
+        'Runs directly on the mobile device in the background',
+        'No WhatsApp Web and no Meta API'
       ],
       cons: [
-        'Android फोन में Termux और Termux:API ऐप इंस्टॉल करना होता है'
+        'Termux and the Termux:API app must be installed on the Android phone'
       ],
       prerequisites: [
-        'Android फोन में F-Droid से Termux इंस्टॉल करें',
-        'Termux:API ऐप'
+        'Install Termux from F-Droid on the Android phone',
+        'Termux:API app'
       ],
       setupCommands: `pkg update && pkg install nodejs git termux-api\nmkdir termux-bot && cd termux-bot\nnpm init -y\nnpm install @whiskeysockets/baileys`,
       filename: 'termux_send.sh',
@@ -451,14 +451,14 @@ MESSAGE="${escapedMessage || 'Direct message from Termux on Android'}"
 
 echo "📱 Sending WhatsApp from Android Termux..."
 
-# Termux Intent के ज़रिए WhatsApp को सीधे मैसेज ट्रिगर करें:
+# Trigger WhatsApp to send the message directly via a Termux Intent:
 am start -a android.intent.action.VIEW \\
   -d "https://api.whatsapp.com/send?phone=\${PHONE}&text=\${MESSAGE}" \\
   com.whatsapp
 
 sleep 1
 
-# Send बटन ट्रिगर
+# Trigger the Send button
 input keyevent 22
 input keyevent 66
 
@@ -471,18 +471,18 @@ echo "✅ Done!"
       badge: 'PYTHON DEVELOPERS',
       category: 'Python',
       doesOpenWhatsAppWeb: false,
-      description: 'Python के जरिए हमारे लोकल REST गेटवे (विधि 2) को कॉल करने की स्क्रिप्ट। कोई Chrome या Selenium नहीं खुलता, 1 सेकंड में बैकएंड से कॉल हो जाती है।',
+      description: 'A script that calls our local REST gateway (Method 2) from Python. No Chrome or Selenium opens, and the call completes from the backend in 1 second.',
       pros: [
-        'कोई ब्राउज़र नहीं खुलता (No Chrome/Edge)',
-        'सिर्फ 5 लाइन का साफ Python कोड',
+        'No browser opens (No Chrome/Edge)',
+        'Clean Python code in just 5 lines',
         'Fast and lightweight'
       ],
       cons: [
-        'विधि 2 वाला लोकल गेटवे रन होना चाहिए'
+        'The local gateway from Method 2 must be running'
       ],
       prerequisites: [
         'Python 3.8+',
-        'requests लाइब्रेरी'
+        'requests library'
       ],
       setupCommands: `pip install requests`,
       filename: 'direct_send.py',
@@ -497,7 +497,7 @@ GATEWAY_URL = "http://localhost:4000/send-message"
 
 payload = {
     "phone": "${cleanPhone || '919876543210'}",
-    "message": "${escapedMessage || 'Namaste! Yeh message Python script se bina WhatsApp Web ke direct bheja gaya hai.'}"
+    "message": "${escapedMessage || 'Hello! This message was sent directly from a Python script without WhatsApp Web.'}"
 }
 
 print(f"🚀 Sending direct message to {payload['phone']}...")
@@ -521,16 +521,16 @@ except Exception as e:
       badge: 'CLI COMMAND LINE',
       category: 'CLI/URL',
       doesOpenWhatsAppWeb: false,
-      description: 'टर्मिनल या बैश स्क्रिप्ट में केवल 1 लाइन की cURL कमांड लिखें। बैकएंड में सीधे मैसेज चला जाएगा।',
+      description: 'Write just a single-line cURL command in a terminal or Bash script. The message is sent directly through the backend.',
       pros: [
-        'सिर्फ 1 लाइन की कमांड',
-        'किसी भी भाषा या क्रोन जॉब (Cron Job) में चल सकती है'
+        'Just a single-line command',
+        'Can run from any language or a cron job'
       ],
       cons: [
-        'लोकल गेटवे बैकग्राउंड में चलना चाहिए'
+        'The local gateway must be running in the background'
       ],
       prerequisites: [
-        'cURL (हर Linux/macOS/Windows 10/11 में पहले से मौजूद होता है)'
+        'cURL (comes pre-installed on every Linux/macOS/Windows 10/11 system)'
       ],
       setupCommands: `# No install needed, curl comes pre-installed`,
       filename: 'send_curl.sh',

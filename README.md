@@ -5,6 +5,11 @@
 [![Node: >=18](https://img.shields.io/badge/Node-%3E%3D18.0.0-blue.svg)](https://nodejs.org)
 [![NVIDIA NIM](https://img.shields.io/badge/NVIDIA-NIM%20AI-76B900.svg)](https://build.nvidia.com)
 [![Protocol: Baileys](https://img.shields.io/badge/Protocol-Baileys%20Multi--Device-25D366.svg)](https://github.com/WhiskeySockets/Baileys)
+[![Docs: Database guide](https://img.shields.io/badge/Docs-Database%20Guide-0a1f33.svg)](DATABASE.md)
+
+> 📚 **Documentation**
+> - **[Database Guide (DATABASE.md)](DATABASE.md)**: where data is stored, every table and field, how to check data with `npm run db`, backups and resets
+> - **Setup, accounts and API**: see the sections below
 
 ---
 

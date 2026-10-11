@@ -34,5 +34,6 @@ export interface Recipient {
   name: string;
   phone: string;
   customData?: Record<string, string>;
-  status: 'pending' | 'sent' | 'skipped';
+  status: 'pending' | 'sending' | 'sent' | 'failed' | 'skipped';
+  error?: string;
 }

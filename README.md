@@ -8,37 +8,37 @@
 
 ---
 
-## 📖 परिचय (Overview)
+## 📖 Overview
 
-**WA Direct Automation** एक संपूर्ण ओपन-सोर्स WhatsApp ऑटोमेशन टूलकिट और स्क्रिप्ट हब है। यह आपको **बिना Meta Developer Account**, बिना Facebook Business Manager, बिना क्रेडिट कार्ड और **बिना Google Chrome / WhatsApp Web का पेज खोले** सीधे बैकग्राउंड में WhatsApp मैसेज भेजने और **NVIDIA NIM AI (Llama 3.3 70B & Nemotron)** से 24/7 स्मार्ट ऑटो-रिप्लाई करने की सुविधा देता है।
-
----
-
-## ✨ मुख्य विशेषताएं (Key Features)
-
-- 🚫 **Zero Meta Cloud API**: किसी Facebook App ID, बिजनेस वेरिफिकेशन या प्रति-मैसेज शुल्क की आवश्यकता नहीं।
-- 🚫 **No WhatsApp Web Browser UI**: स्क्रीन पर Google Chrome या web.whatsapp.com कभी नहीं खुलता (100% Headless Socket Protocol)।
-- 🧠 **NVIDIA NIM AI 24/7 Auto-Reply**: जब भी कोई ग्राहक WhatsApp पर सवाल पूछेगा, NVIDIA का **Llama 3.3 70B** या **Nemotron 70B** मॉडल अपने आप 1 सेकंड में सटीक उत्तर भेज देगा।
-- ⚡ **Local Private REST API**: अपने कंप्यूटर पर सिर्फ 1-लाइन की `curl` कमांड से किसी भी समय मैसेज भेजें।
-- 📱 **Android Direct ADB**: कंप्यूटर से जुड़े असली Android फोन के ऑफिशियल WhatsApp ऐप से सीधा डिस्पैच।
-- 📊 **Interactive Web Studio**: बल्क मैसेज कतार, लाइव मैसेज जनरेटर और टेम्पलेट वेरियबल्स (`{name}`) के साथ आधुनिक React 19 डैशबोर्ड।
-- 🛡️ **Anti-Ban Protection**: नंबर को सुरक्षित रखने के लिए बिल्ट-इन रैंडम डिले और वार्म-अप रणनीतियां।
+**WA Direct Automation** is a complete open-source WhatsApp automation toolkit and script hub. It lets you send WhatsApp messages directly in the background **without a Meta Developer Account**, without Facebook Business Manager, without a credit card, and **without opening Google Chrome or a WhatsApp Web page**. It also provides 24/7 smart auto-replies powered by **NVIDIA NIM AI (Nemotron 3)**.
 
 ---
 
-## 🖥️ Local Machine Setup Guide (स्थानीय कंप्यूटर पर सेटअप करने का पूरा तरीका)
+## ✨ Key Features
 
-अपने Windows, macOS, या Linux कंप्यूटर पर इस प्रोजेक्ट को शुरू करने के लिए नीचे दिए गए स्टेप्स का पालन करें:
+- 🚫 **Zero Meta Cloud API**: No Facebook App ID, business verification, or per-message fees required.
+- 🚫 **No WhatsApp Web Browser UI**: Google Chrome or web.whatsapp.com never opens on screen (100% headless socket protocol).
+- 🧠 **NVIDIA NIM AI 24/7 Auto-Reply**: Whenever a customer asks a question on WhatsApp, NVIDIA's **Nemotron 3 Super** (or **Nemotron 3 Ultra**) model automatically sends an accurate reply within seconds.
+- ⚡ **Local Private REST API**: Send a message at any time from your own computer with a single-line `curl` command.
+- 📱 **Android Direct ADB**: Send directly through the official WhatsApp app on a real Android phone connected to your computer.
+- 📊 **Interactive Web Studio**: A modern React 19 dashboard with a bulk message queue, live message generator, and template variables (`{name}`).
+- 🛡️ **Anti-Ban Protection**: Built-in random delays and warm-up strategies to keep your number safe.
 
-### आवश्यकताएं (Prerequisites):
-- **Node.js**: v18.0.0 या उससे नया ([nodejs.org](https://nodejs.org) से डाउनलोड करें)
+---
+
+## 🖥️ Local Machine Setup Guide
+
+Follow the steps below to run this project on your Windows, macOS, or Linux computer:
+
+### Prerequisites:
+- **Node.js**: v18.0.0 or newer (download from [nodejs.org](https://nodejs.org))
 - **Git**: ([git-scm.com](https://git-scm.com))
-- आपका सामान्य **Android या iPhone** जिसमें सामान्य WhatsApp चालू हो
+- Your regular **Android or iPhone** with WhatsApp installed and active
 
 ---
 
-### स्टेप 1: रिपॉजिटरी को क्लोन करें (Clone Repository)
-टर्मिनल (Terminal या PowerShell) खोलें और निम्नलिखित कमांड चलाएं:
+### Step 1: Clone the Repository
+Open a terminal (Terminal or PowerShell) and run the following commands:
 ```bash
 git clone https://github.com/BanshwarTech/WA-Direct-Automation.git
 cd WA-Direct-Automation
@@ -46,91 +46,183 @@ cd WA-Direct-Automation
 
 ---
 
-### स्टेप 2: डिपेंडेंसीज इंस्टॉल करें (Install Dependencies)
+### Step 2: Install Dependencies
 ```bash
 npm install
 ```
 
 ---
 
-### स्टेप 3: पर्यावरण फ़ाइल सेट करें (Environment Configuration)
-प्रोजेक्ट रूट में `.env` फ़ाइल बनाएं:
+### Step 3: Environment Configuration
+Create the `.env` file in the project root:
 ```bash
 cp .env.example .env
 ```
-अब `.env` फ़ाइल खोलें और अपनी NVIDIA API Key डालें:
+Now open the `.env` file and add your NVIDIA API key:
 ```env
-# NVIDIA NIM AI Key (https://build.nvidia.com से फ्री में प्राप्त करें)
+# NVIDIA NIM AI Key (get it for free from https://build.nvidia.com)
 NVIDIA_API_KEY="nvapi-YOUR_NVIDIA_KEY_HERE"
 
 # App Port (Default: 3000)
 PORT=3000
+
+# Bind address (Default: 127.0.0.1, local access only)
+# HOST=0.0.0.0
 ```
-> 💡 **फ्री NVIDIA API Key कैसे लें:**
-> 1. [https://build.nvidia.com](https://build.nvidia.com) पर जाएं और फ्री अकाउंट बनाएं।
-> 2. `meta/llama-3.3-70b-instruct` मॉडल पेज पर जाएं और **Get API Key** पर क्लिक करें।
-> 3. आपको 1000 फ्री API क्रेडिट्स तुरंत मिल जाते हैं!
+> ⚠️ The server listens on `127.0.0.1` by default. Setting `HOST=0.0.0.0` exposes it on your network, and anyone on that network could then send messages from the linked WhatsApp number. Only do this on a trusted network.
+
+> 💡 **How to get a free NVIDIA API key:**
+> 1. Go to [https://build.nvidia.com](https://build.nvidia.com) and create a free account.
+> 2. Open the `nvidia/nemotron-3-super-120b-a12b` model page and click **Get API Key**.
+> 3. You receive 1000 free API credits immediately!
 
 ---
 
-### स्टेप 4: वेब डैशबोर्ड चलाएं (Start Web UI & Studio)
+### Step 4: Start the Web Dashboard
 ```bash
 npm run dev
 ```
-अब अपने ब्राउज़र में खोलें: **[http://localhost:3000](http://localhost:3000)**
+Now open this address in your browser: **[http://localhost:3000](http://localhost:3000)**
 
-यहाँ आपको मिलेगा:
-- **Live Direct Dispatcher**: किसी भी नंबर पर बिना सेव किए तुरंत मैसेज भेजें।
-- **Bulk Queue Sender**: CSV या लिस्ट डालकर एक साथ कई लोगों को पर्सनलाइज्ड मैसेज भेजें।
-- **NVIDIA AI Studio**: AI से तुरंत किसी भी उद्देश्य (Payment Reminder, Sales Offer) के लिए मैसेज लिखवाएं।
-- **Script Generator**: सभी स्क्रिप्ट्स को लाइव कस्टमाइज़ और डाउनलोड करें।
+The web app has these pages:
+- **Home**: An overview of what the app does and how it works.
+- **Send Messages**: Link WhatsApp with a QR code, then send to one number or a whole list (bulk sending with personalized `{name}` messages).
+- **AI Composer**: Have NVIDIA AI write a message for any purpose (payment reminder, sales offer, order update).
+- **Scripts**: Customize and download standalone automation scripts (AI auto-reply bot, Android ADB, Python, and more).
+- **Help**: Troubleshooting, anti-ban guidelines, and FAQ.
 
 ---
 
-## 🤖 24/7 AI WhatsApp Auto-Reply Bot कैसे चलाएं
+### Accounts and sending messages from the web app
 
-अगर आप चाहते हैं कि आपका कंप्यूटर दिन-रात चालू रहे और आपके WhatsApp पर आने वाले हर ग्राहक के सवाल का जवाब **NVIDIA Llama 3.3 70B AI** खुद देता रहे:
+Sending requires a free account, and **every account links its own WhatsApp** with its own QR code, so messages always go out from that user's number.
+
+1. Open [http://localhost:3000](http://localhost:3000) and click **Get started** (or open **Send Messages**, which redirects you to sign-up).
+2. Create an account with your name, mobile number, email and password.
+3. On **Send Messages**, scan your personal QR code from WhatsApp > **Linked Devices** > **Link a Device**.
+4. Enter the recipient's number and your message, then click **Send Message**. In **Bulk Queue**, **Send All** sends the whole list with a random 3–8 second delay between messages.
+
+Where data is stored (all inside `data/`, which is gitignored). See **[DATABASE.md](DATABASE.md)** for every field, how to check the data (`npm run db`), backups and resets:
+
+| Path | Contents |
+| :--- | :--- |
+| `data/users.json` | Accounts. Passwords are hashed with scrypt; they are never stored in plain text. |
+| `data/session-secret` | Key that signs login cookies (generated on first run unless `SESSION_SECRET` is set). |
+| `data/wa-sessions/<user-id>/` | Each user's linked WhatsApp session, so nobody has to rescan after a restart. |
+
+Optional `.env` settings:
+
+```env
+# Close public sign-up (the first account can always be created)
+ALLOW_REGISTRATION=false
+# Fixed cookie-signing key (32+ characters); otherwise one is generated in data/
+SESSION_SECRET="a-long-random-string-of-at-least-32-characters"
+# Store accounts and sessions somewhere else
+DATA_DIR="./data"
+```
+
+If you used the app before accounts existed, the first account you create automatically takes over the WhatsApp session in `./gateway_auth`.
+
+---
+
+## 🤖 How to Run the 24/7 AI WhatsApp Auto-Reply Bot
+
+> **Note:** `whatsapp_nvidia_ai_bot.js` is not included in the repository. Generate and download it from the **Scripts** page of the web app.
+
+If you want your computer to stay on day and night, with **NVIDIA Nemotron 3 AI** replying to every customer message that arrives on your WhatsApp:
 
 ```bash
-# 1. आवश्यक पैकेज इंस्टॉल करें
+# 1. Install the required packages
 npm install @whiskeysockets/baileys qrcode-terminal pino dotenv
 
-# 2. बोट को स्टार्ट करें
+# 2. Start the bot
 node whatsapp_nvidia_ai_bot.js
 ```
 
-### पहली बार QR कोड कैसे लिंक करें:
-1. टर्मिनल में एक QR कोड दिखाई देगा।
-2. अपने फोन में WhatsApp खोलें:
-   - **Android**: ऊपरी दाएं कोने में 3 डॉट्स > **Linked Devices** > **Link a Device**
+### How to link the QR code the first time:
+1. A QR code appears in the terminal.
+2. Open WhatsApp on your phone:
+   - **Android**: Tap the 3 dots in the top-right corner > **Linked Devices** > **Link a Device**
    - **iPhone**: **Settings** > **Linked Devices** > **Link a Device**
-3. टर्मिनल वाले QR कोड को स्कैन करें।
-4. **बस!** लॉगिन क्रेडेंशियल्स `./nvidia_bot_session` फोल्डर में सेव हो जाते हैं। इसके बाद आपको दोबारा कभी QR स्कैन नहीं करना पड़ेगा!
-5. अब कोई भी आपके WhatsApp पर मैसेज करेगा, तो NVIDIA AI तुरंत उत्तर दे देगा।
+3. Scan the QR code shown in the terminal.
+4. **Done!** Your login credentials are saved in the `./nvidia_bot_session` folder, so you never need to scan the QR code again.
+5. From now on, whenever anyone messages your WhatsApp, NVIDIA AI replies immediately.
 
 ---
 
-## 📡 Private Local REST API Server कैसे चलाएं
+## 📡 How to Run the Private Local REST API Server
 
-अगर आप अपनी वेबसाइट, Python स्क्रिप्ट, PHP बैकएंड या किसी सॉफ्टवेयर से सीधे WhatsApp मैसेज भेजना चाहते हैं:
+If you want to send WhatsApp messages directly from your website, Python script, PHP backend, or any other software:
 
-### 1. लोकल सर्वर स्टार्ट करें:
+### Built-in REST API (recommended)
+The web app server exposes a REST API on the same port as the dashboard. Keep `npm run dev` running, log in, and link your WhatsApp on the **Send Messages** page first.
+
+**Authentication:** every API request needs your personal API key, shown on the **Scripts** page (where you can also regenerate it). Send it as `Authorization: Bearer <key>` (or `X-API-Key: <key>`). Messages sent with a key go out from that account's linked WhatsApp. State-changing requests must use `Content-Type: application/json`.
+
+| Method | Endpoint | Body | Description |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/wa/status` | none | Link status: `{ ready, user, qr }` (`qr` is a PNG data URL while not linked) |
+| `POST` | `/api/wa/send` | `{ "phone": "919876543210", "message": "..." }` | Sends a text message. `phone` must include the country code, digits only |
+| `POST` | `/api/wa/logout` | none | Unlinks WhatsApp and issues a new QR code |
+| `POST` | `/api/nvidia/compose` | `{ intent, recipientName, language, tone, model }` | Drafts a WhatsApp message with AI |
+| `POST` | `/api/nvidia/chat` | `{ prompt }` or `{ messages }`, optional `model` | Generates an AI reply to a customer message |
+
+A successful send returns `{ "success": true, "messageId": "...", "to": "919876543210" }`. Errors return a JSON `error` field with status `400` (missing fields), `401` (missing or invalid API key), `404` (number not on WhatsApp), `415` (body is not JSON), or `503` (WhatsApp not linked yet).
+
+**cURL**
+```bash
+curl -X POST http://localhost:3000/api/wa/send \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"phone": "919876543210", "message": "Your order has been dispatched."}'
+```
+
+**Python**
+```python
+import requests
+
+res = requests.post("http://localhost:3000/api/wa/send", headers={"Authorization": "Bearer YOUR_API_KEY"}, json={
+    "phone": "919876543210",
+    "message": "Your order has been dispatched.",
+})
+print(res.json())
+```
+
+**Node.js**
+```js
+const res = await fetch("http://localhost:3000/api/wa/send", {
+  method: "POST",
+  headers: { "Authorization": "Bearer YOUR_API_KEY", "Content-Type": "application/json" },
+  body: JSON.stringify({ phone: "919876543210", message: "Your order has been dispatched." }),
+});
+console.log(await res.json());
+```
+
+> `GET /sitemap.xml` and `GET /robots.txt` are generated by the server. Set `APP_URL` in `.env` (for example `APP_URL="https://wa.example.com"`) so they use your public domain; otherwise they use the address the request came in on.
+
+> The server listens on `127.0.0.1` only. Setting `HOST=0.0.0.0` exposes it to your network, and anyone on that network could then send messages from your linked number.
+
+### Standalone server
+
+> **Note:** `whatsapp_local_api_server.js` is not included in the repository. Generate and download it from the **Scripts** page of the web app.
+
+### 1. Start the local server:
 ```bash
 node whatsapp_local_api_server.js
 ```
-यह आपके कंप्यूटर पर `http://localhost:4000` पर एक प्राइवेट API सर्वर चालू कर देगा।
+This starts a private API server on your computer at `http://localhost:4000`.
 
-### 2. 1-लाइन cURL से मैसेज भेजें:
+### 2. Send a message with a one-line cURL command:
 ```bash
 curl -X POST http://localhost:4000/send-message \
      -H "Content-Type: application/json" \
      -d '{
        "phone": "919876543210",
-       "message": "Namaste! Yeh message local API gateway se aaya hai."
+       "message": "Hello! This message was sent through the local API gateway."
      }'
 ```
 
-### 3. Python से कॉल करें:
+### 3. Call it from Python:
 ```python
 import requests
 
@@ -143,48 +235,50 @@ print(response.json())
 
 ---
 
-## 📱 Android Phone Direct Hardware (ADB) तरीका
+## 📱 Android Phone Direct Hardware (ADB) Method
 
-अगर आप कंप्यूटर पर Node.js भी नहीं चलाना चाहते और अपने फोन के असली WhatsApp ऐप से ही ऑटोमेशन कराना चाहते हैं:
-1. फोन में **Developer Options > USB Debugging** ऑन करें।
-2. फोन को USB केबल या Wi-Fi से PC से जोड़ें।
-3. स्क्रिप्ट चलाएं:
+> **Note:** `send_via_android_adb.sh` is not included in the repository. Generate and download it from the **Scripts** page of the web app.
+
+If you do not want to run Node.js on your computer and prefer to automate through the real WhatsApp app on your phone:
+1. Turn on **Developer Options > USB Debugging** on the phone.
+2. Connect the phone to your PC with a USB cable or over Wi-Fi.
+3. Run the script:
 ```bash
 bash send_via_android_adb.sh
 ```
-यह आपके फोन के असली WhatsApp ऐप को खुद स्क्रीन पर मैसेज टाइप और सेंड करवा देगा!
+This makes your phone's real WhatsApp app type and send the message on its own screen!
 
 ---
 
-## ☁️ 24/7 Background Deployment (PM2 के साथ)
+## ☁️ 24/7 Background Deployment (with PM2)
 
-अगर आप अपने लैपटॉप या Linux VPS पर इस बोट को बैकग्राउंड में हमेशा चालू रखना चाहते हैं ताकि टर्मिनल बंद करने पर भी बोट बंद न हो:
+If you want to keep this bot running in the background on your laptop or Linux VPS, so it keeps running even after you close the terminal:
 
 ```bash
-# PM2 प्रोसेस मैनेजर इंस्टॉल करें
+# Install the PM2 process manager
 npm install -g pm2
 
-# NVIDIA AI Bot को बैकग्राउंड में स्टार्ट करें
+# Start the NVIDIA AI Bot in the background
 pm2 start whatsapp_nvidia_ai_bot.js --name "wa-nvidia-bot"
 
-# ऑटो-रीस्टार्ट सक्षम करें (सिस्टम रीबूट होने पर भी खुद चलेगा)
+# Enable auto-restart (the bot also starts itself after a system reboot)
 pm2 startup
 pm2 save
 
-# लॉग्स देखने के लिए
+# View logs
 pm2 logs wa-nvidia-bot
 ```
 
 ---
 
-## 🛡️ Anti-Ban Safety Rules (नंबर बैन से बचने की सावधानियां)
+## 🛡️ Anti-Ban Safety Rules
 
-Meta API के बिना ऑटोमेशन करते समय हमेशा इन 5 नियमों का पालन करें:
-1. **रैंडम डिले (Random Delay)**: हर मैसेज के बीच 3 से 8 सेकंड का गैप रखें। कभी भी 1 ही सेकंड में 50 मैसेज न भेजें।
-2. **वार्म-अप (Warm-Up)**: नए नंबर पर पहले दिन 10-20 मैसेज, दूसरे दिन 30-40 मैसेज भेजें।
-3. **पर्सनलाइजेशन (Personalization)**: हूबहू एक जैसा टेक्स्ट सैकड़ों लोगों को भेजने के बजाय `{name}` जैसे वैरिएबल्स का इस्तेमाल करें।
-4. **ऑप्ट-इन संपर्क (Opt-in Contacts)**: उन लोगों को मैसेज भेजें जिन्होंने आपका नंबर सेव कर रखा हो या पहले आपसे चैट की हो।
-5. **स्पैम से बचें**: अनचाहे अजनबियों को कोल्ड मैसेज न भेजें जो आपकी चैट को 'Report & Block' कर सकें।
+Always follow these 5 rules when automating without the Meta API:
+1. **Random Delay**: Keep a gap of 3 to 8 seconds between messages. Never send 50 messages in 1 second.
+2. **Warm-Up**: On a new number, send 10-20 messages on day one and 30-40 messages on day two.
+3. **Personalization**: Instead of sending identical text to hundreds of people, use variables such as `{name}`.
+4. **Opt-in Contacts**: Message only people who have saved your number or have chatted with you before.
+5. **Avoid Spam**: Do not cold-message unwanted strangers, who may 'Report & Block' your chat.
 
 ---
 
@@ -201,16 +295,16 @@ Meta API के बिना ऑटोमेशन करते समय हम
 
 ---
 
-## ❓ Frequently Asked Questions (सामान्य सवाल)
+## ❓ Frequently Asked Questions
 
-**Q: क्या QR कोड स्कैन करने के बाद फोन का इंटरनेट ऑन रहना ज़रूरी है?**  
-A: नहीं! WhatsApp के Multi-Device आर्किटेक्चर के कारण एक बार लिंक हो जाने के बाद आपका फोन स्विच ऑफ होने पर भी बैकएंड स्क्रिप्ट 14 दिनों तक सीधे WhatsApp सर्वर से काम करती रहती है।
+**Q: Does the phone need to stay online after scanning the QR code?**  
+A: No. Thanks to WhatsApp's Multi-Device architecture, once linked, the backend script keeps working directly with WhatsApp servers for up to 14 days even if your phone is switched off.
 
-**Q: क्या इसमें कोई इमेज या PDF भेजी जा सकती है?**  
-A: बिल्कुल! Baileys में `sock.sendMessage(jid, { image: { url: ... }, caption: "..." })` या document/pdf भेजने की पूरी सुविधा है।
+**Q: Can I send images or PDFs?**  
+A: Yes! Baileys fully supports sending images with `sock.sendMessage(jid, { image: { url: ... }, caption: "..." })`, as well as documents and PDFs.
 
-**Q: अगर सेशन लॉगआउट हो जाए तो क्या करें?**  
-A: बस `./nvidia_bot_session` फोल्डर को डिलीट करें और दोबारा `node whatsapp_nvidia_ai_bot.js` चलाकर एक बार नया QR कोड स्कैन कर लें।
+**Q: What should I do if the session gets logged out?**  
+A: Delete the `./nvidia_bot_session` folder, run `node whatsapp_nvidia_ai_bot.js` again, and scan a new QR code once. For the web app, delete the `./gateway_auth` folder and restart `npm run dev`.
 
 ---
 

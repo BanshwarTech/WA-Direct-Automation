@@ -16,7 +16,8 @@ export default defineConfig(() => {
       // Do not modify—file watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
       // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
-      watch: process.env.DISABLE_HMR === 'true' ? null : {},
+      // The WhatsApp session folder is rewritten constantly; keep it out of the watcher.
+      watch: process.env.DISABLE_HMR === 'true' ? null : { ignored: ['**/gateway_auth/**'] },
     },
   };
 });

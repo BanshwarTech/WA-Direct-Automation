@@ -1,12 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { confirmDialog } from './Dialog';
 import { Sparkles, Bot, Send, Check, Copy, AlertCircle, Cpu, RefreshCw, MessageSquareQuote, CheckCircle2, ArrowRight, Zap, Feather, Wallet, Gift, Truck, CalendarDays, PenLine, Languages, Briefcase, Flame, Smile, Bookmark, Plus, X, Loader2 } from 'lucide-react';
 import { Select } from './Select';
 import { inputCls, textareaCls, btnPrimary, btnPrimarySm, btnSecondary } from './ui';
 
 interface Props {
   onUseGeneratedMessage: (msg: string) => void;
-  onSelectNvidiaScript: () => void;
+  /** Called for every real (non-demo) generation so it can be stored in the AI history */
+  onMessageGenerated?: (msg: string) => void;
+  /** Opens the bot script on the Scripts page; omitted for non-admins (the button is hidden) */
+  onSelectNvidiaScript?: () => void;
 }
 
 interface Scenario {
@@ -123,7 +127,7 @@ const AddScenarioDialog: React.FC<{ onClose: () => void; onSaved: (s: Scenario) 
   );
 };
 
-export const NvidiaStudio: React.FC<Props> = ({ onUseGeneratedMessage, onSelectNvidiaScript }) => {
+export const NvidiaStudio: React.FC<Props> = ({ onUseGeneratedMessage, onMessageGenerated, onSelectNvidiaScript }) => {
   const [model, setModel] = useState('nvidia/nemotron-3-super-120b-a12b');
   const [promptTopic, setPromptTopic] = useState('payment_reminder');
   const [customPrompt, setCustomPrompt] = useState('');
@@ -156,7 +160,13 @@ export const NvidiaStudio: React.FC<Props> = ({ onUseGeneratedMessage, onSelectN
   const selectedScenario = promptTopic.startsWith('saved:') ? scenarios.find((sc) => `saved:${sc.id}` === promptTopic) : undefined;
 
   const removeScenario = async (sc: Scenario) => {
-    if (!confirm(`Delete the scenario "${sc.name}"?`)) return;
+    const ok = await confirmDialog({
+      title: 'Delete this scenario?',
+      message: <>“{sc.name}” will be removed from your Purpose list. This cannot be undone.</>,
+      confirmLabel: 'Delete',
+      tone: 'danger',
+    });
+    if (!ok) return;
     await fetch(`/api/scenarios/${sc.id}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: '{}' }).catch(() => {});
     setScenarios((list) => list.filter((x) => x.id !== sc.id));
     if (promptTopic === `saved:${sc.id}`) setPromptTopic('payment_reminder');
@@ -216,6 +226,7 @@ export const NvidiaStudio: React.FC<Props> = ({ onUseGeneratedMessage, onSelectN
         }
       } else {
         setGeneratedOutput(data.generatedMessage || '');
+        if (data.generatedMessage) onMessageGenerated?.(data.generatedMessage);
       }
     } catch (err: any) {
       setErrorMessage('Unable to reach the server. Showing demo output instead.');
@@ -292,6 +303,7 @@ export const NvidiaStudio: React.FC<Props> = ({ onUseGeneratedMessage, onSelectN
           </div>
         </div>
 
+        {onSelectNvidiaScript && (
         <button
           onClick={onSelectNvidiaScript}
           className="inline-flex items-center gap-1.5 rounded-xl bg-green-50 hover:bg-green-100 border border-green-200 px-3.5 py-2 text-xs font-semibold text-green-600 transition"
@@ -299,6 +311,7 @@ export const NvidiaStudio: React.FC<Props> = ({ onUseGeneratedMessage, onSelectN
           <Bot className="h-4 w-4" />
           View Full AI Bot Script (Baileys + NVIDIA) <ArrowRight className="h-3 w-3" />
         </button>
+        )}
       </div>
 
       {/* API Key Status Notice */}

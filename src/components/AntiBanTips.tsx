@@ -1,65 +1,76 @@
 import React from 'react';
-import { ShieldAlert, Clock, Shuffle, UserCheck, Flame, BellOff } from 'lucide-react';
+import { Eyebrow } from './Eyebrow';
+import { ShieldAlert, ShieldCheck, Clock, Shuffle, UserCheck, Flame, BellOff } from 'lucide-react';
 
-export const AntiBanTips: React.FC = () => {
-  const tips = [
-    {
-      icon: <Clock className="h-5 w-5 text-amber-600" />,
-      title: 'Add a random 3–8 second delay between messages',
-      desc: 'Sending dozens of messages within seconds can trigger WhatsApp\'s spam detection and get the number blocked. Insert a random delay between every message.'
-    },
-    {
-      icon: <Shuffle className="h-5 w-5 text-green-600" />,
-      title: 'Personalize every message',
-      desc: 'Avoid sending identical text to hundreds of recipients. Use variables such as "Hello Rahul" and "Hello Priya".'
-    },
-    {
-      icon: <Flame className="h-5 w-5 text-orange-600" />,
-      title: 'Warm up new numbers',
-      desc: 'For a new SIM or number, send 10–15 messages on day one and 25–30 on day two. A sudden spike of hundreds of messages can get the number flagged.'
-    },
-    {
-      icon: <UserCheck className="h-5 w-5 text-blue-600" />,
-      title: 'Message contacts who already know you',
-      desc: 'The risk of a ban drops significantly when recipients have saved your number or have chatted with you before.'
-    },
-    {
-      icon: <BellOff className="h-5 w-5 text-purple-600" />,
-      title: 'Never send unsolicited messages to strangers',
-      desc: 'If several recipients use "Report & Block", WhatsApp may suspend the account automatically. Only message your clients, customers, and known contacts.'
-    }
-  ];
+const TIPS = [
+  {
+    icon: Clock,
+    title: 'Keep a random 3–8 second gap',
+    desc: "Dozens of messages within seconds can trigger WhatsApp's spam detection. Bulk sending adds this delay for you automatically.",
+  },
+  {
+    icon: Shuffle,
+    title: 'Personalise every message',
+    desc: 'Avoid identical text to hundreds of people. Use {name} and other variables so every customer gets their own details.',
+  },
+  {
+    icon: Flame,
+    title: 'Warm up new numbers',
+    desc: 'On a new SIM, send 10–15 messages on day one and 25–30 on day two. A sudden spike of hundreds can get the number flagged.',
+  },
+  {
+    icon: UserCheck,
+    title: 'Message people who know you',
+    desc: 'The risk drops sharply when recipients have saved your number or chatted with you before.',
+  },
+  {
+    icon: BellOff,
+    title: 'Never message strangers',
+    desc: 'If several recipients tap "Report & Block", WhatsApp may suspend the account. Only message your customers and known contacts.',
+  },
+];
 
-  return (
-    <div className="rounded-3xl border border-amber-200 bg-white p-6 md:p-8 space-y-5 shadow-[0_1px_2px_rgba(10,31,51,0.04),0_12px_32px_-12px_rgba(10,31,51,0.14)]">
-      <div className="flex items-center gap-3">
-        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 text-white shadow-md shadow-amber-500/30">
-          <ShieldAlert className="h-5 w-5" />
+// Anti-ban guidelines: dark feature panel with five numbered rules
+export const AntiBanTips: React.FC = () => (
+  <div className="relative overflow-hidden rounded-3xl bg-navy-900 p-6 md:p-10">
+    <div
+      aria-hidden
+      className="pointer-events-none absolute inset-0 bg-[radial-gradient(45%_70%_at_0%_0%,rgba(245,158,11,0.18),transparent_70%),radial-gradient(45%_70%_at_100%_100%,rgba(37,211,102,0.16),transparent_70%)]"
+    />
+    <div className="relative grid gap-8 lg:grid-cols-12 lg:gap-10">
+      <div className="space-y-4 lg:col-span-4">
+        <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 text-white shadow-lg shadow-amber-500/30">
+          <ShieldAlert className="h-6 w-6" />
         </span>
-        <div>
-          <h3 className="text-xl font-bold text-navy-900">
-            Anti-Ban Guidelines
-          </h3>
-          <p className="text-sm text-slate-500">
-            Because these methods do not use the official Meta API, follow these five rules to protect your number
-          </p>
-        </div>
+        <Eyebrow tone="dark" icon={<ShieldCheck className="h-3.5 w-3.5" />}>
+          Stay safe
+        </Eyebrow>
+        <h2 className="text-2xl font-black tracking-tight text-white md:text-3xl">Anti-ban guidelines</h2>
+        <p className="text-sm leading-relaxed text-slate-300">
+          This app does not use the official Meta API, so WhatsApp treats your number like a regular account. Follow these five rules
+          to keep it safe.
+        </p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 pt-2">
-        {tips.map((tip, idx) => (
-          <div
-            key={idx}
-            className="rounded-xl border border-slate-200 bg-slate-50 p-4 transition-all hover:border-slate-300"
+      <ol className="grid gap-3 sm:grid-cols-2 lg:col-span-8">
+        {TIPS.map((tip, i) => (
+          <li
+            key={tip.title}
+            className={`group rounded-2xl border border-white/10 bg-white/[0.04] p-5 backdrop-blur transition hover:border-amber-400/40 hover:bg-white/[0.07] ${
+              i === TIPS.length - 1 ? 'sm:col-span-2' : ''
+            }`}
           >
-            <div className="flex items-center gap-2 mb-2">
-              {tip.icon}
-              <h4 className="text-xs font-bold text-navy-900 leading-snug">{tip.title}</h4>
+            <div className="flex items-center gap-3">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-400/15 text-amber-400 transition group-hover:bg-amber-400 group-hover:text-navy-900">
+                <tip.icon className="h-4 w-4" />
+              </span>
+              <span className="text-xs font-bold tabular-nums text-slate-500">{String(i + 1).padStart(2, '0')}</span>
+              <h3 className="text-sm font-bold text-white">{tip.title}</h3>
             </div>
-            <p className="text-xs text-slate-500 leading-relaxed">{tip.desc}</p>
-          </div>
+            <p className="mt-2.5 text-sm leading-relaxed text-slate-400">{tip.desc}</p>
+          </li>
         ))}
-      </div>
+      </ol>
     </div>
-  );
-};
+  </div>
+);

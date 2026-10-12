@@ -10,7 +10,7 @@ This guide explains where the data lives, how to check it, and what every "table
 
 ```
 data/
-├── users.json              ← "users" table (and each user's saved scenarios)
+├── users.json              ← "users" table (and each user's saved scenarios and messages)
 ├── session-secret          ← key that signs login cookies
 └── wa-sessions/
     └── <user-id>/          ← each user's linked WhatsApp session (Baileys files)
@@ -76,6 +76,7 @@ The data is not in SQL tables, but it is organised like this:
 
 ```
 users (1) ──< scenarios (many)        stored inside each user record
+users (1) ──< savedMessages (many)    stored inside each user record
 users (1) ──  wa_session (0 or 1)     folder data/wa-sessions/<users.id>/
 ```
 
@@ -94,6 +95,7 @@ A JSON array; each element is one account.
 | `apiKey` | string | ✅ | Personal API key for scripts (`Authorization: Bearer <key>`). Starts with `wad_`. **Secret.** | `wad_Xk3…` |
 | `createdAt` | string (ISO 8601) | ✅ | When the account was created. | `2026-10-11T16:24:50.123Z` |
 | `scenarios` | array of `scenarios` | – | The user's saved AI Composer scenarios (see below). | `[ … ]` |
+| `savedMessages` | array of `savedMessages` | – | Saved messages and AI Composer history, listed on the Send Messages page (see below). | `[ … ]` |
 
 Example record (secrets shortened):
 
@@ -127,7 +129,22 @@ Example record (secrets shortened):
 
 Limit: 30 scenarios per user.
 
-### 3.3 `wa_sessions` (folder: `data/wa-sessions/<user-id>/`)
+### 3.3 `savedMessages` (inside each user: `users[].savedMessages`)
+
+Newest first. Every AI Composer generation is added automatically as an **AI history** entry (`pinned: false`). Clicking **Send this message** in the AI Composer, or **Save** on the Send Messages page, saves it for good (`pinned: true`).
+
+| Field | Type | Required | Description | Example |
+| :--- | :--- | :---: | :--- | :--- |
+| `id` | string (UUID v4) | ✅ | Unique message ID. | `3b7e0c1d-…` |
+| `title` | string (≤60) | ✅ | Name shown in the message dropdown. Defaults to the first line of the text. | `Hello Rahul! 🙏` |
+| `text` | string (1–4000) | ✅ | The message, with WhatsApp formatting (`*bold*`, `_italic_`, …). Unique per user. | `Hello *Rahul*! …` |
+| `source` | `"ai"` \| `"manual"` | ✅ | `ai` = from the AI Composer, `manual` = saved from the editor. | `ai` |
+| `pinned` | boolean | – | `false` = AI history entry. `true` or missing = saved by the user. | `false` |
+| `createdAt` | string (ISO 8601) | ✅ | When it was added. | `2026-10-12T15:20:00.000Z` |
+
+Limits: 50 saved messages per user. Only the latest 20 AI history entries are kept; older ones are removed automatically. Demo output (shown when `NVIDIA_API_KEY` is missing) is never stored.
+
+### 3.4 `wa_sessions` (folder: `data/wa-sessions/<user-id>/`)
 
 One folder per user who has opened Send Messages. Created and managed by the Baileys library; **do not edit these files**.
 
@@ -139,7 +156,7 @@ One folder per user who has opened Send Messages. Created and managed by the Bai
 - No folder, or no `creds.json` → the user has not linked WhatsApp yet.
 - Deleting a user's folder unlinks them; they will get a new QR code on the Send Messages page.
 
-### 3.4 `session_secret` (file: `data/session-secret`)
+### 3.5 `session_secret` (file: `data/session-secret`)
 
 | Content | Description |
 | :--- | :--- |
@@ -147,7 +164,7 @@ One folder per user who has opened Send Messages. Created and managed by the Bai
 
 Changing or deleting it logs **all** users out (their passwords and data are unaffected).
 
-### 3.5 Login sessions (not stored)
+### 3.6 Login sessions (not stored)
 
 Logins are stateless signed cookies (`wa_session`, HttpOnly, SameSite=Lax, valid 7 days). They contain only the user ID and expiry, so there is no sessions table.
 
@@ -177,7 +194,7 @@ Logins are stateless signed cookies (`wa_session`, HttpOnly, SameSite=Lax, valid
 
 ## 6. Moving to a real database later
 
-The file store is ideal for a single server with up to a few hundred users. For more users, or several servers behind a load balancer, move to **SQLite** (single server, no setup) or **MySQL / PostgreSQL** (hosted, multiple servers). All data access is in `auth.ts` (`loadUsers`, `saveUsers`, `updateUser`, `getUserScenarios`), so only that file needs to change.
+The file store is ideal for a single server with up to a few hundred users. For more users, or several servers behind a load balancer, move to **SQLite** (single server, no setup) or **MySQL / PostgreSQL** (hosted, multiple servers). All data access is in `auth.ts` (`loadUsers`, `saveUsers`, `updateUser`, `getUserScenarios`, `getUserMessages`), so only that file needs to change.
 
 Equivalent SQL schema (MySQL syntax):
 
@@ -200,6 +217,17 @@ CREATE TABLE scenarios (
   instructions VARCHAR(600) NOT NULL,
   created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uq_user_scenario (user_id, name),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE saved_messages (
+  id         CHAR(36)      PRIMARY KEY,
+  user_id    CHAR(36)      NOT NULL,
+  title      VARCHAR(60)   NOT NULL,
+  text       VARCHAR(4000) NOT NULL,
+  source     ENUM('ai', 'manual') NOT NULL,
+  pinned     BOOLEAN       NOT NULL DEFAULT TRUE,
+  created_at DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 ```

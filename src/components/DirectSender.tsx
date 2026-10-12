@@ -1,10 +1,18 @@
 import React, { useRef, useState } from 'react';
-import { Send, Copy, Check, ExternalLink, Trash2, Smartphone, Users, AlertCircle, Loader2, LogOut, X } from 'lucide-react';
+import { Send, Copy, Check, ExternalLink, Trash2, Smartphone, Users, AlertCircle, Loader2, LogOut, X, Upload, Download, FileSpreadsheet } from 'lucide-react';
 import { Recipient } from '../types';
 import { Select } from './Select';
+import { MessageEditor, WhatsAppText } from './MessageEditor';
+import { MessagePicker } from './MessagePicker';
+import { useSavedMessages } from '../hooks/useSavedMessages';
 import { inputCls, textareaCls, btnPrimary, btnPrimarySm, btnSecondary } from './ui';
 import { countryOptions, DEFAULT_COUNTRY, dialCode } from '../data/countries';
 import { WaStatus } from '../hooks/useWaStatus';
+import { VariableFields } from './VariableFields';
+import { confirmDialog } from './Dialog';
+import { Notice } from './Notice';
+import { extractVariables, fillVariables, variableLabel } from '../utils/variables';
+import { downloadSampleSheet, importRecipients } from '../utils/excel';
 
 // Random 3–8s gap between bulk messages (anti-ban)
 const randomDelay = () => 3000 + Math.floor(Math.random() * 5000);
@@ -27,19 +35,27 @@ interface Props {
   message: string;
   setMessage: React.Dispatch<React.SetStateAction<string>>;
   waStatus: WaStatus | null;
+  savedMessages: ReturnType<typeof useSavedMessages>;
 }
 
-export const DirectSender: React.FC<Props> = ({ phone, setPhone, message, setMessage, waStatus }) => {
+export const DirectSender: React.FC<Props> = ({ phone, setPhone, message, setMessage, waStatus, savedMessages }) => {
   const [activeMode, setActiveMode] = useState<'single' | 'bulk'>('single');
   const [countryIso, setCountryIso] = useState(DEFAULT_COUNTRY);
   const countryCode = dialCode(countryIso);
   const [copiedLink, setCopiedLink] = useState(false);
-  const [bulkInput, setBulkInput] = useState(`919876543210, Rahul\n919811223344, Priya\n919899887766, Amit`);
+  const [bulkInput, setBulkInput] = useState('');
   const [queue, setQueue] = useState<Recipient[]>([]);
   const [sending, setSending] = useState(false);
   const [sendResult, setSendResult] = useState<{ ok: boolean; text: string } | null>(null);
   const [bulkRunning, setBulkRunning] = useState(false);
   const stopBulk = useRef(false);
+  // Values for {variables}, shared by both modes (keyed by variable name, so they survive template switches)
+  const [varValues, setVarValues] = useState<Record<string, string>>({});
+  const setVar = (key: string, value: string) => setVarValues((prev) => ({ ...prev, [key]: value }));
+  const [sheetColumns, setSheetColumns] = useState<string[]>([]);
+  const [importInfo, setImportInfo] = useState<{ ok: boolean; text: string } | null>(null);
+  const [importing, setImporting] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   // Calculate full phone with clean digits
   const cleanNumber = phone.replace(/[^0-9]/g, '');
@@ -47,7 +63,13 @@ export const DirectSender: React.FC<Props> = ({ phone, setPhone, message, setMes
     ? cleanNumber
     : `${countryCode}${cleanNumber.replace(/^0+/, '')}`;
 
-  const generatedUrl = `https://api.whatsapp.com/send?phone=${fullPhone}&text=${encodeURIComponent(message)}`;
+  const messageVars = extractVariables(message);
+  const filledMessage = fillVariables(message, varValues);
+  const missingVars = messageVars.filter((v) => !varValues[v]?.trim());
+  // Bulk: {name} comes from each row and every other variable from the matching Excel column
+  const missingColumns = messageVars.filter((v) => v !== 'name' && !sheetColumns.includes(v));
+
+  const generatedUrl = `https://api.whatsapp.com/send?phone=${fullPhone}&text=${encodeURIComponent(filledMessage)}`;
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(generatedUrl);
@@ -55,27 +77,58 @@ export const DirectSender: React.FC<Props> = ({ phone, setPhone, message, setMes
     setTimeout(() => setCopiedLink(false), 2000);
   };
 
-  const handleInsertFormat = (tag: string) => {
-    if (tag === 'bold') setMessage((prev) => `${prev} *bold text*`);
-    if (tag === 'italic') setMessage((prev) => `${prev} _italic text_`);
-    if (tag === 'strike') setMessage((prev) => `${prev} ~strikethrough~`);
-    if (tag === 'mono') setMessage((prev) => `${prev} \`\`\`monospace\`\`\``);
-  };
+  // Pasted list columns follow the message: phone, name, then one column per other {variable}
+  const pasteVars = messageVars.filter((v) => v !== 'name');
+  const pasteColumns = ['phone', 'name', ...pasteVars];
+  // Placeholder shows the column order by variable name, e.g. "phone, name, order_id, courier"
+  const pasteExample = pasteColumns.join(', ');
 
   const parseBulkRecipients = () => {
     const lines = bulkInput.split('\n').filter((l) => l.trim().length > 0);
+    const stamp = Date.now();
     const parsed: Recipient[] = lines.map((line, idx) => {
-      const parts = line.split(',').map((p) => p.trim());
+      // Rows copied from Excel are tab-separated; typed rows use commas
+      const parts = line.split(line.includes('\t') ? '\t' : ',').map((p) => p.trim());
       const rawNum = parts[0]?.replace(/[^0-9]/g, '') || '';
       const name = parts[1] || `Recipient ${idx + 1}`;
+      const customData: Record<string, string> = {};
+      pasteVars.forEach((v, i) => {
+        if (parts[i + 2]) customData[v] = parts[i + 2];
+      });
       return {
-        id: `rec-${idx}-${Date.now()}`,
+        id: `rec-${idx}-${stamp}`,
         phone: rawNum,
         name: name,
+        customData,
         status: 'pending',
       };
     });
     setQueue(parsed);
+    setSheetColumns(pasteVars);
+    setImportInfo(null);
+  };
+
+  const handleImportFile = async (file: File) => {
+    setImporting(true);
+    setImportInfo(null);
+    try {
+      const { recipients, columns, skipped } = await importRecipients(file, dialCode(DEFAULT_COUNTRY));
+      if (recipients.length === 0) throw new Error('No valid phone numbers found in the file.');
+      setQueue(recipients);
+      setSheetColumns(columns);
+      setImportInfo({
+        ok: true,
+        text:
+          `Loaded ${recipients.length} recipients from ${file.name}` +
+          (columns.length ? ` · columns: ${columns.join(', ')}` : '') +
+          (skipped ? ` · ${skipped} rows skipped (invalid number)` : ''),
+      });
+    } catch (error: any) {
+      setImportInfo({ ok: false, text: error.message || 'Could not read the file.' });
+    } finally {
+      setImporting(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
   };
 
   const handleDirectSend = async () => {
@@ -83,10 +136,14 @@ export const DirectSender: React.FC<Props> = ({ phone, setPhone, message, setMes
       setSendResult({ ok: false, text: 'Please enter both a phone number and a message.' });
       return;
     }
+    if (missingVars.length) {
+      setSendResult({ ok: false, text: `Fill in the message variables first: ${missingVars.map(variableLabel).join(', ')}.` });
+      return;
+    }
     setSending(true);
     setSendResult(null);
     try {
-      await sendDirect(fullPhone, message);
+      await sendDirect(fullPhone, filledMessage);
       setSendResult({ ok: true, text: `Message sent to +${fullPhone} ✓` });
     } catch (error: any) {
       setSendResult({ ok: false, text: error.message });
@@ -98,8 +155,16 @@ export const DirectSender: React.FC<Props> = ({ phone, setPhone, message, setMes
   const updateQueueItem = (id: string, patch: Partial<Recipient>) =>
     setQueue((prev) => prev.map((q) => (q.id === id ? { ...q, ...patch } : q)));
 
+  const personalize = (item: Recipient) => fillVariables(message, { ...item.customData, name: item.name });
+
+  /** Returns false when the item was not sent because variables are missing (so no anti-ban delay is needed) */
   const handleSendQueueItem = async (item: Recipient) => {
-    const personalizedMsg = message.replace(/{name}/gi, item.name);
+    const personalizedMsg = personalize(item);
+    const unfilled = extractVariables(personalizedMsg);
+    if (unfilled.length) {
+      updateQueueItem(item.id, { status: 'failed', error: `Missing: ${unfilled.map(variableLabel).join(', ')}` });
+      return false;
+    }
     updateQueueItem(item.id, { status: 'sending', error: undefined });
     try {
       await sendDirect(item.phone, personalizedMsg);
@@ -107,6 +172,7 @@ export const DirectSender: React.FC<Props> = ({ phone, setPhone, message, setMes
     } catch (error: any) {
       updateQueueItem(item.id, { status: 'failed', error: error.message });
     }
+    return true;
   };
 
   const handleSendAll = async () => {
@@ -115,14 +181,20 @@ export const DirectSender: React.FC<Props> = ({ phone, setPhone, message, setMes
     const pending = queue.filter((q) => q.status === 'pending' || q.status === 'failed');
     for (let i = 0; i < pending.length; i++) {
       if (stopBulk.current) break;
-      await handleSendQueueItem(pending[i]);
-      if (i < pending.length - 1) await sleep(randomDelay());
+      const attempted = await handleSendQueueItem(pending[i]);
+      if (attempted && i < pending.length - 1) await sleep(randomDelay());
     }
     setBulkRunning(false);
   };
 
   const handleLogout = async () => {
-    if (!confirm('Unlink WhatsApp from this app?')) return;
+    const ok = await confirmDialog({
+      title: 'Unlink WhatsApp?',
+      message: 'Messages will stop sending from this number. To link it again you will need to scan a new QR code.',
+      confirmLabel: 'Unlink',
+      tone: 'danger',
+    });
+    if (!ok) return;
     await fetch('/api/wa/logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }).catch(() => {});
   };
 
@@ -196,7 +268,7 @@ export const DirectSender: React.FC<Props> = ({ phone, setPhone, message, setMes
       {activeMode === 'single' ? (
         <div className="mt-6 grid gap-6 lg:grid-cols-12">
           {/* Inputs Section */}
-          <div className="space-y-5 lg:col-span-7">
+          <div className="min-w-0 space-y-5 lg:col-span-7">
             {/* Phone input */}
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600">
@@ -225,96 +297,28 @@ export const DirectSender: React.FC<Props> = ({ phone, setPhone, message, setMes
                 </div>
               </div>
               <p className="mt-1.5 text-xs text-slate-500 text-slate-500">
-                Number without spaces or special characters. (Number will resolve to: <span className="font-mono text-green-600">+{fullPhone}</span>)
+                Number without spaces or special characters.
+                {cleanNumber && <> (Number will resolve to: <span className="font-mono text-green-600">+{fullPhone}</span>)</>}
               </p>
             </div>
 
             {/* Message input */}
             <div>
-              <div className="flex items-center justify-between">
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600">
-                  Message Content
-                </label>
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => handleInsertFormat('bold')}
-                    className="rounded bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-600 hover:bg-slate-200"
-                    title="Bold"
-                  >
-                    B
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleInsertFormat('italic')}
-                    className="rounded bg-slate-100 px-2 py-0.5 text-xs italic text-slate-600 hover:bg-slate-200"
-                    title="Italic"
-                  >
-                    I
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleInsertFormat('strike')}
-                    className="rounded bg-slate-100 px-2 py-0.5 text-xs line-through text-slate-600 hover:bg-slate-200"
-                    title="Strikethrough"
-                  >
-                    S
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleInsertFormat('mono')}
-                    className="rounded bg-slate-100 px-2 py-0.5 text-xs font-mono text-slate-600 hover:bg-slate-200"
-                    title="Monospace"
-                  >
-                    &lt;/&gt;
-                  </button>
-                </div>
-              </div>
-
-              <textarea
-                rows={5}
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                placeholder="Type your WhatsApp message here..."
-                className={`mt-2 ${textareaCls}`}
-              />
-
-              <div className="mt-2 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() =>
-                    setMessage(
-                      'Hello! This is a test message sent without a Meta account.'
-                    )
-                  }
-                  className="rounded-lg bg-slate-100 px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-100"
-                >
-                  📝 Test Message
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setMessage(
-                      'Hello! Your order has been confirmed. Thank you for choosing us! 🚀'
-                    )
-                  }
-                  className="rounded-lg bg-slate-100 px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-100"
-                >
-                  📦 Order Update Msg
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setMessage(
-                      'Hi there! Please find the meeting link here: https://meet.google.com/xyz-abc'
-                    )
-                  }
-                  className="rounded-lg bg-slate-100 px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-100"
-                >
-                  📅 Meeting Link Msg
-                </button>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600">
+                Message Content
+              </label>
+              <div className="mt-2 space-y-2">
+                <MessagePicker message={message} setMessage={setMessage} library={savedMessages} />
+                <MessageEditor
+                  value={message}
+                  onChange={setMessage}
+                  rows={10}
+                  placeholder="Type your WhatsApp message here..."
+                />
               </div>
             </div>
+
+            <VariableFields variables={messageVars} values={varValues} onChange={setVar} />
 
             {/* Action Buttons */}
             <div className="flex flex-wrap gap-3 pt-2">
@@ -339,26 +343,14 @@ export const DirectSender: React.FC<Props> = ({ phone, setPhone, message, setMes
             </div>
 
             {sendResult && (
-              <div
-                className={`flex items-start justify-between gap-3 rounded-xl border px-4 py-3 text-sm ${
-                  sendResult.ok
-                    ? 'border-green-200 bg-green-50 text-green-600'
-                    : 'border-red-200 bg-red-50 text-red-600'
-                }`}
-              >
-                <span className="flex items-center gap-2">
-                  {sendResult.ok ? <Check className="h-4 w-4 shrink-0" /> : <AlertCircle className="h-4 w-4 shrink-0" />}
-                  {sendResult.text}
-                </span>
-                <button type="button" onClick={() => setSendResult(null)} aria-label="Dismiss" className="opacity-70 hover:opacity-100">
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
+              <Notice tone={sendResult.ok ? 'success' : 'error'} onDismiss={() => setSendResult(null)}>
+                {sendResult.text}
+              </Notice>
             )}
           </div>
 
           {/* Live Preview Section */}
-          <div className="lg:col-span-5">
+          <div className="min-w-0 lg:col-span-5">
             <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
               <div className="flex items-center gap-3 bg-[#008069] px-4 py-3 text-white">
                 <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20 text-sm font-bold">
@@ -373,7 +365,7 @@ export const DirectSender: React.FC<Props> = ({ phone, setPhone, message, setMes
               <div className="flex min-h-[220px] flex-col justify-end bg-[#efeae2] p-4">
                 <div className="ml-auto max-w-[88%] rounded-2xl rounded-tr-sm bg-[#d9fdd3] px-3.5 py-2.5 text-navy-900 shadow-sm">
                   <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">
-                    {message || <span className="text-slate-500">Your message will appear here</span>}
+                    {message ? <WhatsAppText text={filledMessage} /> : <span className="text-slate-500">Your message will appear here</span>}
                   </p>
                   <div className="mt-1 flex items-center justify-end gap-1 text-[10px] text-slate-500">
                     Just now <span className="text-sky-500">✓✓</span>
@@ -381,7 +373,7 @@ export const DirectSender: React.FC<Props> = ({ phone, setPhone, message, setMes
                 </div>
               </div>
               <div className="flex items-center justify-between gap-3 border-t border-slate-100 px-4 py-3 text-xs text-slate-500">
-                <span>{message.length} characters</span>
+                <span>{filledMessage.length} characters</span>
                 <a href={generatedUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-medium text-green-700 hover:underline">
                   Open in WhatsApp <ExternalLink className="h-3 w-3" />
                 </a>
@@ -393,18 +385,57 @@ export const DirectSender: React.FC<Props> = ({ phone, setPhone, message, setMes
         /* Bulk Queue Mode */
         <div className="mt-6 space-y-6">
           <div className="grid gap-6 md:grid-cols-12">
-            <div className="md:col-span-6 space-y-3">
+            <div className="min-w-0 md:col-span-6 space-y-3">
               <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600">
                 Bulk Recipient List
               </label>
+
+              {/* Excel / CSV upload: columns phone, name and one column per {variable} */}
+              <div className="rounded-xl border-2 border-dashed border-slate-300 bg-slate-50/60 p-4 text-center">
+                <FileSpreadsheet className="mx-auto h-7 w-7 text-green-600" />
+                <p className="mt-1.5 text-sm font-semibold text-navy-900">Upload an Excel or CSV file</p>
+                <p className="mt-0.5 text-[11px] text-slate-500">
+                  Columns: <code className="text-green-600">phone</code>, <code className="text-green-600">name</code>, plus one column per message variable
+                  {messageVars.filter((v) => v !== 'name').length > 0 && (
+                    <> (e.g. <code className="text-green-600">{messageVars.filter((v) => v !== 'name').slice(0, 3).join(', ')}</code>)</>
+                  )}
+                </p>
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept=".xlsx,.xls,.csv"
+                  className="hidden"
+                  onChange={(e) => e.target.files?.[0] && handleImportFile(e.target.files[0])}
+                />
+                <div className="mt-3 flex flex-wrap justify-center gap-2">
+                  <button type="button" onClick={() => fileRef.current?.click()} disabled={importing || bulkRunning} className={btnPrimarySm}>
+                    {importing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
+                    {importing ? 'Reading…' : 'Upload Excel / CSV'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => downloadSampleSheet(messageVars)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  >
+                    <Download className="h-3 w-3" /> Download sample Excel
+                  </button>
+                </div>
+                {importInfo && (
+                  <Notice tone={importInfo.ok ? 'success' : 'error'} onDismiss={() => setImportInfo(null)} compact className="mt-3">
+                    {importInfo.text}
+                  </Notice>
+                )}
+              </div>
+
               <p className="text-xs text-slate-500">
-                Format: <code className="text-green-600">CountryCodeNumber, Name</code> (One per line)
+                Or paste one recipient per line: <code className="text-green-600">{pasteColumns.join(', ')}</code>
+                {pasteVars.length > 0 && <> (or copy the rows straight from Excel)</>}
               </p>
               <textarea
                 rows={6}
                 value={bulkInput}
                 onChange={(e) => setBulkInput(e.target.value)}
-                placeholder="919876543210, Rahul&#10;919811223344, Priya"
+                placeholder={pasteExample}
                 className={`font-mono text-xs ${textareaCls}`}
               />
               <button
@@ -416,20 +447,28 @@ export const DirectSender: React.FC<Props> = ({ phone, setPhone, message, setMes
               </button>
             </div>
 
-            <div className="md:col-span-6 space-y-3">
+            <div className="min-w-0 md:col-span-6 space-y-3">
               <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600">
                 Bulk Message Template (Use <span className="text-green-600">{"{name}"}</span> variable)
               </label>
-              <textarea
+              <MessagePicker message={message} setMessage={setMessage} library={savedMessages} />
+              <MessageEditor
                 rows={6}
                 value={message}
-                onChange={(e) => setMessage(e.target.value)}
+                onChange={setMessage}
                 placeholder="Hello {name}, your update is ready!"
-                className={textareaCls}
+                showNameVariable
               />
               <p className="text-xs text-slate-500">
-                Tip: <code className="text-green-600">{"{name}"}</code> will automatically be substituted by each recipient's personal name!
+                Tip: <code className="text-green-600">{"{name}"}</code> is filled from each recipient&apos;s name, and other variables from the matching Excel column.
               </p>
+              {queue.length > 0 && missingColumns.length > 0 && (
+                <Notice tone="warning" compact>
+                    The loaded list has no column for{' '}
+                    <strong>{missingColumns.map(variableLabel).join(', ')}</strong>. Use <em>Download sample Excel</em> to get a sheet with all
+                    the right columns.
+                </Notice>
+              )}
             </div>
           </div>
 
@@ -477,6 +516,15 @@ export const DirectSender: React.FC<Props> = ({ phone, setPhone, message, setMes
                       <div>
                         <div className="font-medium text-navy-900 text-sm">{item.name}</div>
                         <div className="text-xs font-mono text-slate-500">+{item.phone}</div>
+                        {item.customData && Object.keys(item.customData).length > 0 && (
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            {Object.entries(item.customData).slice(0, 4).map(([k, v]) => (
+                              <span key={k} className="max-w-[160px] truncate rounded bg-white px-1.5 py-0.5 text-[10px] text-slate-500 ring-1 ring-slate-200" title={`${k}: ${v}`}>
+                                {variableLabel(k)}: {v}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
 

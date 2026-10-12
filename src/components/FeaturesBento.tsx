@@ -1,6 +1,8 @@
 import React from 'react';
-import { ArrowRight, Bot, Check, Code2, Loader2, Send, Smartphone, Sparkles, Users } from 'lucide-react';
+import { ArrowRight, Bot, Check, Code2, LayoutGrid, Loader2, Send, Smartphone, Sparkles, Users } from 'lucide-react';
 import { btnPrimarySm } from './ui';
+import { Eyebrow } from './Eyebrow';
+import { useAuth } from '../auth/AuthContext';
 
 interface CardProps {
   href: string;
@@ -140,12 +142,13 @@ const ScriptsPreview = () => (
   </div>
 );
 
-export const FeaturesBento: React.FC = () => (
+export const FeaturesBento: React.FC = () => {
+  // The Scripts & API card links to an admin-only page; for everyone else the AI Composer card fills the row
+  const isAdmin = useAuth().user?.role === 'owner';
+  return (
   <section className="relative space-y-12">
     <div className="mx-auto max-w-2xl text-center space-y-4">
-      <span className="inline-flex items-center gap-2 rounded-full border border-green-200 bg-white px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-green-700 shadow-sm">
-        <span className="h-1.5 w-1.5 rounded-full bg-wa" /> Powerful Features
-      </span>
+      <Eyebrow icon={<LayoutGrid className="h-3.5 w-3.5" />}>Powerful Features</Eyebrow>
       <h2 className="text-3xl md:text-5xl font-black tracking-tight text-navy-900">
         Everything in{' '}
         <span className="bg-gradient-to-r from-green-600 to-emerald-500 bg-clip-text text-transparent">one place</span>
@@ -181,7 +184,7 @@ export const FeaturesBento: React.FC = () => (
       </FeatureCard>
 
       <FeatureCard
-        className="lg:col-span-2"
+        className={isAdmin ? 'lg:col-span-2' : 'lg:col-span-6'}
         href="/ai"
         icon={Bot}
         index="03"
@@ -192,6 +195,7 @@ export const FeaturesBento: React.FC = () => (
         <AiPreview />
       </FeatureCard>
 
+      {isAdmin && (
       <FeatureCard
         className="lg:col-span-4"
         href="/scripts"
@@ -203,6 +207,8 @@ export const FeaturesBento: React.FC = () => (
       >
         <ScriptsPreview />
       </FeatureCard>
+      )}
     </div>
   </section>
-);
+  );
+};

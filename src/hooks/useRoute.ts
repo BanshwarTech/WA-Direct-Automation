@@ -7,6 +7,9 @@ const ROUTES: Route[] = ['home', 'send', 'ai', 'scripts', 'help', 'login', 'regi
 // Pages that need an account
 export const PROTECTED_ROUTES: Route[] = ['send', 'ai'];
 
+// Pages only the admin (owner account) can open; hidden from everyone else
+export const ADMIN_ROUTES: Route[] = ['scripts'];
+
 export const pathFor = (route: Route) => (route === 'home' ? '/' : `/${route}`);
 
 // Clean path routing (/send, /ai, ...). The server renders every non-API path (SSR),

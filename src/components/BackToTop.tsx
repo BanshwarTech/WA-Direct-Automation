@@ -30,26 +30,26 @@ export const BackToTop: React.FC = () => {
       onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
       aria-label={`Back to top (${pct}% scrolled)`}
       title="Back to top"
-      className={`group fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-navy-900 text-white shadow-[0_12px_30px_-10px_rgba(10,31,51,0.6)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-navy-800 ${
+      className={`group fixed bottom-5 right-5 z-40 flex h-10 w-10 items-center justify-center rounded-full bg-navy-900 text-white shadow-[0_12px_30px_-10px_rgba(10,31,51,0.6)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-navy-800 ${
         visible ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-4 opacity-0'
       }`}
     >
-      <svg aria-hidden viewBox="0 0 56 56" className="absolute inset-0 h-14 w-14 -rotate-90">
-        <circle cx="28" cy="28" r="26" fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="2.5" />
+      <svg aria-hidden viewBox="0 0 56 56" className="absolute inset-0 h-10 w-10 -rotate-90">
+        <circle cx="28" cy="28" r="26" fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="3" />
         <circle
           cx="28"
           cy="28"
           r="26"
           fill="none"
           stroke="#25d366"
-          strokeWidth="2.5"
+          strokeWidth="3"
           strokeLinecap="round"
           strokeDasharray={circumference}
           strokeDashoffset={circumference * (1 - progress)}
         />
       </svg>
-      <span className="relative text-xs font-bold tabular-nums transition duration-200 group-hover:scale-75 group-hover:opacity-0">{pct}%</span>
-      <ArrowUp className="absolute h-5 w-5 scale-75 opacity-0 transition duration-200 group-hover:scale-100 group-hover:opacity-100" />
+      <span className="relative text-[10px] font-bold tabular-nums transition duration-200 group-hover:scale-75 group-hover:opacity-0">{pct}%</span>
+      <ArrowUp className="absolute h-4 w-4 scale-75 opacity-0 transition duration-200 group-hover:scale-100 group-hover:opacity-100" />
     </button>
   );
 };

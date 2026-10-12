@@ -4,6 +4,7 @@ import { PageShell, Highlight } from '../components/PageShell';
 import { ScriptGenerator } from '../components/ScriptGenerator';
 import { ScriptLanguage, ScriptTemplate } from '../types';
 import { useAuth } from '../auth/AuthContext';
+import { confirmDialog } from '../components/Dialog';
 
 interface Props {
   scripts: ScriptTemplate[];
@@ -76,7 +77,13 @@ export const ScriptsPage: React.FC<Props> = ({ scripts, selectedScriptId, setSel
   }, [user]);
 
   const regenerate = async () => {
-    if (!confirm('Generate a new API key? Scripts using the old key will stop working.')) return;
+    const ok = await confirmDialog({
+      title: 'Generate a new API key?',
+      message: 'Scripts and integrations using the current key will stop working until you update them with the new one.',
+      confirmLabel: 'Generate new key',
+      tone: 'danger',
+    });
+    if (!ok) return;
     setBusy(true);
     try {
       const res = await fetch('/api/auth/api-key', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
@@ -100,7 +107,7 @@ export const ScriptsPage: React.FC<Props> = ({ scripts, selectedScriptId, setSel
     >
       <ScriptGenerator scripts={scripts} selectedScriptId={selectedScriptId} setSelectedScriptId={setSelectedScriptId} />
 
-      {/* Built-in API with the user's own key; the full reference lives in the README */}
+      {/* Built-in API with the user's own key */}
       <section className="rounded-3xl border border-slate-200/80 bg-white p-6 grid gap-6 lg:grid-cols-5 shadow-[0_1px_2px_rgba(10,31,51,0.04),0_12px_32px_-12px_rgba(10,31,51,0.14)]">
         <div className="lg:col-span-2 space-y-5">
           <div className="space-y-2">
@@ -108,8 +115,7 @@ export const ScriptsPage: React.FC<Props> = ({ scripts, selectedScriptId, setSel
               <Server className="h-4 w-4 text-green-600" /> Sending from your own software?
             </div>
             <p className="text-sm text-slate-500 leading-relaxed">
-              You may not need a script. One HTTP request with your API key sends a message from your linked WhatsApp. The full API
-              reference is in the project README.
+              You may not need a script. One HTTP request with your API key sends a message from your linked WhatsApp.
             </p>
           </div>
           {user ? (

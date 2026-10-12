@@ -1,12 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowRight, ChevronDown, FileCode, Github, KeyRound, LifeBuoy, LogOut, Menu, Send, Sparkles, X } from 'lucide-react';
-import { navigate, Route } from '../hooks/useRoute';
+import { ArrowRight, ChevronDown, FileCode, KeyRound, LifeBuoy, LogOut, Menu, Send, Sparkles, X } from 'lucide-react';
+import { ADMIN_ROUTES, navigate, Route } from '../hooks/useRoute';
 import { AuthUser, useAuth } from '../auth/AuthContext';
 import { WaStatus } from '../hooks/useWaStatus';
 import { btnPrimary } from './ui';
 import { Logo } from './Logo';
-
-export const REPO_URL = 'https://github.com/BanshwarTech/WA-Direct-Automation';
 
 export const NAV_ITEMS: { route: Route; label: string; href: string; icon: React.ElementType; hint: string }[] = [
   { route: 'send', label: 'Send Messages', href: '/send', icon: Send, hint: 'Single & bulk' },
@@ -166,7 +164,9 @@ const UserMenu: React.FC<{ user: AuthUser; waStatus: WaStatus | null; onLogout: 
             {[
               { href: '/send', icon: Send, label: 'Send Messages', hint: 'Single & bulk sending' },
               { href: '/ai', icon: Sparkles, label: 'AI Composer', hint: 'Write messages with AI' },
-              { href: '/scripts', icon: KeyRound, label: 'API key & scripts', hint: 'Automate from your software' },
+              ...(user.role === 'owner'
+                ? [{ href: '/scripts', icon: KeyRound, label: 'API key & scripts', hint: 'Automate from your software' }]
+                : []),
             ].map((m) => (
               <a key={m.href} role="menuitem" href={m.href} onClick={() => setOpen(false)} className={item}>
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500 transition group-hover:bg-white group-hover:text-green-600 group-hover:shadow-sm">
@@ -211,13 +211,16 @@ export const Header: React.FC<Props> = ({ route, waStatus }) => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const status = statusInfo(waStatus);
+  // The Scripts page is admin-only, so it is left out of the menus for everyone else
+  const navItems = NAV_ITEMS.filter((item) => !ADMIN_ROUTES.includes(item.route) || user?.role === 'owner');
 
   // Close the mobile menu after navigating
   useEffect(() => setMenuOpen(false), [route]);
 
-  // Compact, glassy header once the page is scrolled
+  // Transparent over the hero at the top of the page; white glass with a border and shadow once scrolled.
+  // Only colours and shadow change, never the height, so the page below does not jump while scrolling.
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 8);
+    const onScroll = () => setScrolled(window.scrollY > 4);
     onScroll();
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
@@ -225,53 +228,32 @@ export const Header: React.FC<Props> = ({ route, waStatus }) => {
 
   return (
     <header className="sticky top-0 z-50">
-      {/* Announcement strip */}
-      <div className={`overflow-hidden bg-navy-900 text-white transition-all duration-300 ${scrolled ? 'max-h-0' : 'max-h-10'}`}>
-        <div className="mx-auto flex h-9 max-w-7xl items-center justify-center gap-2 px-4 text-xs sm:px-6 lg:px-8">
-          <span className="rounded-full bg-wa/15 px-2 py-0.5 font-semibold text-wa">Open source</span>
-          <span className="hidden text-slate-300 sm:inline">Free WhatsApp automation that runs on your own computer.</span>
-          <a href={REPO_URL} target="_blank" rel="noreferrer" className="group inline-flex items-center gap-1 font-semibold text-white hover:text-wa">
-            Star on GitHub <ArrowRight className="h-3 w-3 transition group-hover:translate-x-0.5" />
-          </a>
-        </div>
-      </div>
-
       {/* Main bar */}
       <div
-        className={`border-b transition-all duration-300 ${
+        className={`border-b transition-[background-color,border-color,box-shadow,backdrop-filter] duration-300 ease-out ${
           scrolled
-            ? 'border-slate-200/80 bg-white/75 shadow-[0_10px_30px_-18px_rgba(10,31,51,0.35)] backdrop-blur-xl'
-            : 'border-slate-200/50 bg-white/60 backdrop-blur'
+            ? 'border-slate-200/80 bg-white/80 shadow-[0_10px_30px_-18px_rgba(10,31,51,0.35)] backdrop-blur-xl'
+            : 'border-transparent bg-transparent shadow-none'
         }`}
       >
-        <div
-          className={`mx-auto flex max-w-7xl items-center justify-between gap-2 px-3 transition-all duration-300 sm:gap-4 sm:px-6 lg:px-8 ${
-            scrolled ? 'h-16' : 'h-[72px]'
-          }`}
-        >
+        <div className="mx-auto flex h-[68px] max-w-7xl items-center justify-between gap-2 px-3 sm:gap-4 sm:px-6 lg:px-8">
           <a href="/" aria-label="WA Direct Automation home" className="shrink-0">
             <Logo badge tagline />
           </a>
 
-          {/* Pill navigation */}
-          <nav
-            className="hidden xl:flex items-center gap-0.5 rounded-full border border-slate-200/80 bg-slate-100/70 p-1 shadow-inner shadow-slate-200/50"
-            aria-label="Main"
-          >
-            {NAV_ITEMS.map((item) => {
+          {/* Navigation: plain links; the active page is shown in green */}
+          <nav className="hidden xl:flex items-center gap-8" aria-label="Main">
+            {navItems.map((item) => {
               const active = route === item.route;
               return (
                 <a
                   key={item.route}
                   href={item.href}
                   aria-current={active ? 'page' : undefined}
-                  className={`flex items-center gap-1.5 whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-medium transition-all duration-200 ${
-                    active
-                      ? 'bg-white text-navy-900 shadow-[0_2px_8px_-2px_rgba(10,31,51,0.18)] ring-1 ring-slate-200/80'
-                      : 'text-slate-500 hover:text-navy-900'
+                  className={`whitespace-nowrap py-2 text-sm font-semibold transition-colors duration-200 ${
+                    active ? 'text-green-700' : 'text-slate-600 hover:text-navy-900'
                   }`}
                 >
-                  {active && <span className="h-1.5 w-1.5 rounded-full bg-wa" />}
                   {item.label}
                 </a>
               );
@@ -315,7 +297,7 @@ export const Header: React.FC<Props> = ({ route, waStatus }) => {
       {menuOpen && (
         <nav className="xl:hidden border-b border-slate-200 bg-white/95 px-4 pb-5 pt-3 shadow-xl backdrop-blur-xl" aria-label="Mobile">
           <div className="grid gap-2 sm:grid-cols-2">
-            {NAV_ITEMS.map((item) => {
+            {navItems.map((item) => {
               const active = route === item.route;
               return (
                 <a
@@ -366,9 +348,6 @@ export const Header: React.FC<Props> = ({ route, waStatus }) => {
               </a>
             </div>
           )}
-          <a href={REPO_URL} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500">
-            <Github className="h-4 w-4" /> GitHub
-          </a>
         </nav>
       )}
     </header>

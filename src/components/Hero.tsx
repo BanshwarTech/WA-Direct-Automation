@@ -115,7 +115,7 @@ export const Hero: React.FC<{ waStatus: WaStatus | null }> = ({ waStatus }) => {
       <div aria-hidden className="pointer-events-none absolute -top-40 right-[-10%] h-[520px] w-[520px] rounded-full bg-wa/20 blur-[120px]" />
       <div aria-hidden className="pointer-events-none absolute -left-40 top-20 h-[420px] w-[420px] rounded-full bg-navy-600/10 blur-[120px]" />
 
-      <div className="relative mx-auto grid max-w-7xl gap-14 px-4 pb-20 pt-12 sm:px-6 md:pt-20 lg:grid-cols-[1.05fr_1fr] lg:items-center lg:px-8">
+      <div className="relative mx-auto grid max-w-7xl gap-14 px-4 pb-20 pt-[7.25rem] sm:px-6 md:pt-[9.25rem] lg:grid-cols-[1.05fr_1fr] lg:items-center lg:px-8">
         {/* Copy */}
         <div className="space-y-7">
           <a

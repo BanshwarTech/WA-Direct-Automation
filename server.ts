@@ -5,6 +5,7 @@ import fs from 'fs/promises';
 import { fileURLToPath } from 'url';
 import { adoptLegacySession, getWhatsAppStatus, logoutWhatsApp, restoreWhatsAppSessions, sendWhatsAppText } from './whatsapp';
 import { registerScenarioRoutes } from './scenarios';
+import { registerMessageRoutes } from './messages';
 import { attachUser, registerAuthRoutes, registrationOpen, requireAuth, requireJson, PublicUser } from './auth';
 
 dotenv.config();
@@ -28,6 +29,7 @@ registerAuthRoutes(app, {
 });
 app.use(['/api/wa', '/api/nvidia'], requireJson, requireAuth);
 registerScenarioRoutes(app);
+registerMessageRoutes(app);
 
 const NVIDIA_API_BASE = 'https://integrate.api.nvidia.com/v1';
 
@@ -222,10 +224,9 @@ Additional Context/Details: ${context || 'None'}`;
 });
 
 // SEO: sitemap.xml and robots.txt. Absolute URLs use APP_URL when it is a real URL, otherwise the request host.
-// Only public pages: /send and /ai require an account
+// Only public pages: /send and /ai require an account, /scripts is admin-only
 const SITE_PAGES = [
   { path: '/', priority: '1.0' },
-  { path: '/scripts', priority: '0.7' },
   { path: '/help', priority: '0.6' },
   { path: '/register', priority: '0.5' },
   { path: '/login', priority: '0.4' },
@@ -249,7 +250,7 @@ app.get('/sitemap.xml', (req: Request, res: Response) => {
 });
 
 app.get('/robots.txt', (req: Request, res: Response) => {
-  res.type('text/plain').send(`User-agent: *\nAllow: /\nDisallow: /api/\n\nSitemap: ${siteOrigin(req)}/sitemap.xml\n`);
+  res.type('text/plain').send(`User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /scripts\n\nSitemap: ${siteOrigin(req)}/sitemap.xml\n`);
 });
 
 // WhatsApp direct send (Baileys, no WhatsApp Web)
@@ -338,6 +339,8 @@ async function startServer() {
 }
 
 const PROTECTED_PATHS = ['/send', '/ai'];
+// Admin-only pages: members are sent to Send Messages, logged-out visitors to log-in
+const ADMIN_PATHS = ['/scripts'];
 const AUTH_PATHS = ['/login', '/register'];
 
 // Only same-site relative paths are accepted as a post-login destination (no open redirects)
@@ -348,7 +351,10 @@ function safeNext(value: unknown): string {
 
 async function sendPage(req: Request, res: Response, page: { template: string; render: RenderFn }) {
   // Sending requires an account: new visitors land on sign-up (or log-in when sign-up is closed)
-  if (PROTECTED_PATHS.includes(req.path) && !req.user) {
+  if (ADMIN_PATHS.includes(req.path) && req.user && req.user.role !== 'owner') {
+    return res.redirect(302, '/send');
+  }
+  if ((PROTECTED_PATHS.includes(req.path) || ADMIN_PATHS.includes(req.path)) && !req.user) {
     const target = registrationOpen() ? '/register' : '/login';
     return res.redirect(302, `${target}?next=${encodeURIComponent(req.originalUrl)}`);
   }

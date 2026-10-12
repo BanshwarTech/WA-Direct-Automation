@@ -12,4 +12,4 @@ auth_info*/
 gateway_auth/
 headless_auth/
 # accounts, session secret and per-user WhatsApp sessions
-data/
+/data/

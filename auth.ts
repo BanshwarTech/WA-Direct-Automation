@@ -25,6 +25,7 @@ interface StoredUser extends PublicUser {
   apiKey: string;
   createdAt: string;
   scenarios?: Scenario[];
+  savedMessages?: SavedMessage[];
 }
 
 // A user-defined AI Composer scenario (name shown in the dropdown, instructions sent to the AI)
@@ -32,6 +33,17 @@ export interface Scenario {
   id: string;
   name: string;
   instructions: string;
+}
+
+// A message kept for reuse on the Send page: AI Composer output (history or saved) or typed by hand
+export interface SavedMessage {
+  id: string;
+  title: string;
+  text: string;
+  source: 'ai' | 'manual';
+  /** false = AI history entry (auto-trimmed); true/missing = saved by the user and kept */
+  pinned?: boolean;
+  createdAt: string;
 }
 
 declare global {
@@ -99,6 +111,10 @@ export function updateUser<T>(userId: string, fn: (user: StoredUser) => T): T | 
 
 export function getUserScenarios(userId: string): Scenario[] {
   return loadUsers().find((u) => u.id === userId)?.scenarios ?? [];
+}
+
+export function getUserMessages(userId: string): SavedMessage[] {
+  return loadUsers().find((u) => u.id === userId)?.savedMessages ?? [];
 }
 
 // ---------- passwords ----------
@@ -207,6 +223,13 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
   next();
 }
 
+// Admin-only features (the Scripts page and API keys) are limited to the owner account
+export function requireAdmin(req: Request, res: Response, next: NextFunction) {
+  if (!req.user) return res.status(401).json({ error: 'Please log in to continue.', authRequired: true });
+  if (req.user.role !== 'owner') return res.status(403).json({ error: 'Only the admin can use this feature.' });
+  next();
+}
+
 // State-changing requests must be JSON: browsers cannot send cross-site JSON without a CORS preflight,
 // which (together with SameSite=Lax cookies) blocks CSRF.
 export function requireJson(req: Request, res: Response, next: NextFunction) {
@@ -292,13 +315,13 @@ export function registerAuthRoutes(app: Express, hooks: { onRegister?: (user: Pu
     res.json({ success: true });
   });
 
-  // API key for scripts: view and rotate (session only, never via another API key)
-  app.get('/api/auth/api-key', requireAuth, (req, res) => {
+  // API key for scripts: view and rotate (admin only, session only, never via another API key)
+  app.get('/api/auth/api-key', requireAdmin, (req, res) => {
     const user = loadUsers().find((u) => u.id === req.user!.id);
     res.json({ apiKey: user?.apiKey ?? null });
   });
 
-  app.post('/api/auth/api-key', requireAuth, (req, res) => {
+  app.post('/api/auth/api-key', requireAdmin, (req, res) => {
     const users = loadUsers();
     const user = users.find((u) => u.id === req.user!.id);
     if (!user) return res.status(404).json({ error: 'User not found.' });

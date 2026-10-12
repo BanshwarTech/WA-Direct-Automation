@@ -1,4 +1,5 @@
 import React from 'react';
+import { Eyebrow } from './Eyebrow';
 
 interface Props {
   eyebrow: string;
@@ -20,12 +21,9 @@ export const PageShell: React.FC<Props> = ({ eyebrow, icon, title, description, 
       />
       <div aria-hidden className="pointer-events-none absolute -top-32 right-[-5%] h-[380px] w-[380px] rounded-full bg-wa/20 blur-[110px]" />
 
-      <div className="relative mx-auto flex max-w-7xl flex-col gap-6 px-4 pb-24 pt-12 sm:px-6 md:flex-row md:items-end md:justify-between md:pt-16 lg:px-8">
+      <div className="relative mx-auto flex max-w-7xl flex-col gap-6 px-4 pb-24 pt-[7.25rem] sm:px-6 md:flex-row md:items-end md:justify-between md:pt-[8.25rem] lg:px-8">
         <div className="max-w-2xl space-y-4">
-          <span className="inline-flex items-center gap-2 rounded-full border border-green-200 bg-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-green-700 shadow-sm backdrop-blur">
-            {icon}
-            {eyebrow}
-          </span>
+          <Eyebrow icon={icon}>{eyebrow}</Eyebrow>
           <h1 className="text-3xl font-black tracking-tight text-navy-900 md:text-5xl">{title}</h1>
           <p className="text-base leading-relaxed text-slate-600 md:text-lg">{description}</p>
         </div>

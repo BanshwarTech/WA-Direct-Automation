@@ -12,10 +12,13 @@ import { ScriptsPage } from './pages/ScriptsPage';
 import { HelpPage } from './pages/HelpPage';
 import { LoginPage, RegisterPage } from './pages/AuthPages';
 import { BackToTop } from './components/BackToTop';
+import { DialogHost } from './components/Dialog';
 import { AuthProvider, AuthState, useAuth } from './auth/AuthContext';
-import { navigate, PROTECTED_ROUTES, Route, useRoute } from './hooks/useRoute';
+import { ADMIN_ROUTES, navigate, PROTECTED_ROUTES, Route, useRoute } from './hooks/useRoute';
 import { useWaStatus } from './hooks/useWaStatus';
 import { getScripts } from './data/scriptsData';
+import { DEFAULT_MESSAGE } from './data/messageTemplates';
+import { useSavedMessages } from './hooks/useSavedMessages';
 import { ScriptLanguage } from './types';
 import { PAGE_META } from './seo';
 
@@ -23,6 +26,7 @@ export default function App({ initialRoute, initialAuth }: { initialRoute: Route
   return (
     <AuthProvider initial={initialAuth}>
       <AppShell initialRoute={initialRoute} />
+      <DialogHost />
     </AuthProvider>
   );
 }
@@ -35,18 +39,21 @@ function AppShell({ initialRoute }: { initialRoute: Route }) {
 
   // Sending needs an account: show sign-up (or log-in) in place of protected pages
   const authRoute: Route = registrationOpen ? 'register' : 'login';
-  const needsAuth = PROTECTED_ROUTES.includes(requestedRoute) && !user;
-  const route: Route = needsAuth ? authRoute : requestedRoute;
+  const isAdmin = user?.role === 'owner';
+  const needsAuth = (PROTECTED_ROUTES.includes(requestedRoute) || ADMIN_ROUTES.includes(requestedRoute)) && !user;
+  // Admin-only pages: members see Send Messages instead
+  const forbidden = Boolean(user) && !isAdmin && ADMIN_ROUTES.includes(requestedRoute);
+  const route: Route = needsAuth ? authRoute : forbidden ? 'send' : requestedRoute;
 
   useEffect(() => {
     if (needsAuth) navigate(authRoute, `?next=/${requestedRoute}`);
+    else if (forbidden) navigate('send');
     else if (user && (requestedRoute === 'login' || requestedRoute === 'register')) navigate('send');
-  }, [needsAuth, authRoute, requestedRoute, user]);
+  }, [needsAuth, forbidden, authRoute, requestedRoute, user]);
 
-  const [phone, setPhone] = useState('9876543210');
-  const [message, setMessage] = useState(
-    'Hello! This message was sent directly in the background via Baileys, with no Meta account required. 🚀'
-  );
+  const [phone, setPhone] = useState('');
+  const [message, setMessage] = useState(DEFAULT_MESSAGE);
+  const savedMessages = useSavedMessages(Boolean(user));
   const [selectedScriptId, setSelectedScriptId] = useState<ScriptLanguage>('nvidia-bot');
 
   // Scripts embed the current phone & message
@@ -57,8 +64,14 @@ function AppShell({ initialRoute }: { initialRoute: Route }) {
     document.querySelector('meta[name="description"]')?.setAttribute('content', PAGE_META[route].description);
   }, [route]);
 
+  // Every AI Composer generation goes into the AI history; "Send this message" also saves it for good
+  const handleMessageGenerated = (msg: string) => {
+    savedMessages.save(msg, 'ai', { pin: false }).catch(() => {});
+  };
+
   const handleUseGeneratedMessage = (msg: string) => {
     setMessage(msg);
+    savedMessages.save(msg, 'ai', { pin: true }).catch(() => {});
     navigate('send');
   };
 
@@ -75,7 +88,9 @@ function AppShell({ initialRoute }: { initialRoute: Route }) {
     <div className="min-h-screen bg-[#f5f8fa] text-slate-800 flex flex-col font-sans selection:bg-green-200 selection:text-navy-900">
       <Header route={route} waStatus={waStatus} />
 
-      <main className={route === 'home' ? 'flex-1 w-full' : 'flex-1 w-full pb-16'}>
+      {/* Pulled up under the sticky header (h-[68px]) so the hero background runs behind it; the header
+          is transparent at the top of the page and turns solid once scrolled */}
+      <main className={route === 'home' ? '-mt-[68px] flex-1 w-full' : '-mt-[68px] flex-1 w-full pb-16'}>
         {route === 'home' && <HomePage waStatus={waStatus} />}
 
         {route === 'send' && (
@@ -87,7 +102,14 @@ function AppShell({ initialRoute }: { initialRoute: Route }) {
             aside={<LinkStatusCard waStatus={waStatus} />}
           >
             {!waStatus?.ready && <LinkOnboarding waStatus={waStatus} />}
-            <DirectSender phone={phone} setPhone={setPhone} message={message} setMessage={setMessage} waStatus={waStatus} />
+            <DirectSender
+              phone={phone}
+              setPhone={setPhone}
+              message={message}
+              setMessage={setMessage}
+              waStatus={waStatus}
+              savedMessages={savedMessages}
+            />
           </PageShell>
         )}
 
@@ -98,7 +120,11 @@ function AppShell({ initialRoute }: { initialRoute: Route }) {
             title={<>Write messages with <Highlight>AI</Highlight></>}
             description="Describe what you need and the AI drafts a ready-to-send WhatsApp message. Use it on the Send Messages page with one click, or preview automatic replies to customers."
           >
-            <NvidiaStudio onUseGeneratedMessage={handleUseGeneratedMessage} onSelectNvidiaScript={handleSelectNvidiaScript} />
+            <NvidiaStudio
+              onUseGeneratedMessage={handleUseGeneratedMessage}
+              onMessageGenerated={handleMessageGenerated}
+              onSelectNvidiaScript={isAdmin ? handleSelectNvidiaScript : undefined}
+            />
           </PageShell>
         )}
 

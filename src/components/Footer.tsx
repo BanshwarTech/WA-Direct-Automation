@@ -1,8 +1,8 @@
 import React from 'react';
-import { ArrowUpRight, Github, UserPlus } from 'lucide-react';
+import { ArrowUpRight, UserPlus } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { WaStatus } from '../hooks/useWaStatus';
-import { REPO_URL, StatusDot, statusInfo } from './Header';
+import { StatusDot, statusInfo } from './Header';
 import { Logo } from './Logo';
 
 const COLUMNS = [
@@ -15,20 +15,12 @@ const COLUMNS = [
     ],
   },
   {
-    title: 'Scripts',
-    links: [
-      { label: 'AI Auto-Reply Bot', href: '/scripts' },
-      { label: 'Android ADB', href: '/scripts' },
-      { label: 'Python & cURL', href: '/scripts' },
-    ],
-  },
-  {
     title: 'Resources',
     links: [
-      { label: 'Troubleshooting', href: '/help' },
-      { label: 'Anti-Ban Guidelines', href: '/help' },
-      { label: 'FAQ', href: '/help' },
-      { label: 'Source code', href: REPO_URL, external: true },
+      { label: 'Getting Started', href: '/help#getting-started' },
+      { label: 'Troubleshooting', href: '/help#troubleshooting' },
+      { label: 'Anti-Ban Guidelines', href: '/help#stay-safe' },
+      { label: 'FAQ', href: '/help#faq' },
     ],
   },
 ];
@@ -53,7 +45,7 @@ export const Footer: React.FC<{ waStatus: WaStatus | null }> = ({ waStatus }) =>
             <Logo tone="dark" />
           </a>
           <p className="max-w-sm text-sm leading-relaxed text-slate-400">
-            Send WhatsApp messages directly from your computer, with AI-assisted writing and no Meta account.
+            Send WhatsApp messages from your own number, with AI-assisted writing and no Meta account.
           </p>
           <div className="flex flex-wrap items-center gap-3">
             {user ? (
@@ -72,19 +64,11 @@ export const Footer: React.FC<{ waStatus: WaStatus | null }> = ({ waStatus }) =>
                 <UserPlus className="h-3.5 w-3.5" /> Create free account
               </a>
             )}
-            <a
-              href={REPO_URL}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-2 rounded-full bg-white px-3.5 py-1.5 text-xs font-semibold text-navy-900 hover:bg-slate-100"
-            >
-              <Github className="h-3.5 w-3.5" /> Star on GitHub
-            </a>
           </div>
         </div>
 
         {/* Link columns */}
-        <div className="grid grid-cols-2 gap-8 sm:grid-cols-3 lg:col-span-7">
+        <div className="grid grid-cols-2 gap-8 lg:col-span-7 lg:justify-items-end">
           {COLUMNS.map((col) => (
             <div key={col.title}>
               <h4 className="text-xs font-semibold uppercase tracking-[0.16em] text-wa">{col.title}</h4>
@@ -93,7 +77,6 @@ export const Footer: React.FC<{ waStatus: WaStatus | null }> = ({ waStatus }) =>
                   <li key={link.label}>
                     <a
                       href={link.href}
-                      {...('external' in link && link.external ? { target: '_blank', rel: 'noreferrer' } : {})}
                       className="group inline-flex items-center gap-1 text-sm text-slate-400 transition hover:text-white"
                     >
                       {link.label}
@@ -117,9 +100,11 @@ export const Footer: React.FC<{ waStatus: WaStatus | null }> = ({ waStatus }) =>
 
       {/* Bottom bar */}
       <div className="relative flex flex-col items-center justify-between gap-4 border-t border-white/10 py-6 text-xs text-slate-500 sm:flex-row">
-        <p>© {new Date().getFullYear()} WA Direct Automation · Open source · Use responsibly and only message people who expect to hear from you.</p>
-        <div className="flex items-center gap-4">
-          <a href="/sitemap.xml" className="hover:text-white">
+        <p>© {new Date().getFullYear()} WA Direct Automation. All rights reserved.</p>
+        <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
+          <span>Use responsibly and only message people who expect to hear from you.</span>
+          <span aria-hidden className="hidden h-3 w-px bg-white/15 sm:block" />
+          <a href="/sitemap.xml" className="font-medium text-slate-400 transition hover:text-white">
             Sitemap
           </a>
         </div>

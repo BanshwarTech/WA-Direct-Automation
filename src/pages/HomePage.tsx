@@ -2,17 +2,15 @@ import React from 'react';
 import {
   ArrowRight,
   CheckCircle2,
-  LifeBuoy,
-  Lock,
   PenLine,
   QrCode,
   Send,
-  Zap,
 } from 'lucide-react';
 import { WaStatus } from '../hooks/useWaStatus';
 import { FeaturesBento } from '../components/FeaturesBento';
 import { Hero } from '../components/Hero';
-import { btnPrimary } from '../components/ui';
+import { HomeFaq } from '../components/HomeFaq';
+import { HomeCta } from '../components/HomeCta';
 
 interface Props {
   waStatus: WaStatus | null;
@@ -66,39 +64,9 @@ export const HomePage: React.FC<Props> = ({ waStatus }) => {
         </div>
       </section>
 
-      {/* Closing CTA */}
-      <section className="rounded-3xl bg-navy-900 p-8 md:p-10">
-        <div className="flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
-          <div className="space-y-2">
-            <h2 className="text-2xl md:text-3xl font-black text-white">
-              Ready to send your first message with <span className="text-wa">WhatsApp</span>?
-            </h2>
-            <p className="text-slate-300">Link. Write. Send. Read the anti-ban guidelines before sending in bulk.</p>
-          </div>
-          <div className="space-y-4 lg:min-w-[380px]">
-            <a
-              href="/send"
-              className={`w-full ${btnPrimary} !py-3.5 !text-base !font-bold`}
-            >
-              GET STARTED NOW <ArrowRight className="h-5 w-5" />
-            </a>
-            <ul className="flex flex-wrap justify-center gap-x-5 gap-y-2 text-sm text-slate-300">
-              <li className="flex items-center gap-1.5">
-                <Zap className="h-4 w-4 text-wa" /> Quick setup
-              </li>
-              <li className="flex items-center gap-1.5">
-                <Lock className="h-4 w-4 text-wa" /> Private & local
-              </li>
-              <li className="flex items-center gap-1.5">
-                <LifeBuoy className="h-4 w-4 text-wa" />
-                <a href="/help" className="hover:text-white">
-                  Help center
-                </a>
-              </li>
-            </ul>
-          </div>
-        </div>
-      </section>
+      <HomeFaq />
+
+      <HomeCta />
       </div>
     </div>
   );

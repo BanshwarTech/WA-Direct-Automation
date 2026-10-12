@@ -1,5 +1,6 @@
 @import "tailwindcss";
-@import "@fontsource-variable/bricolage-grotesque";
+@import "@fontsource-variable/work-sans";
+@import "@fontsource-variable/work-sans/wght-italic.css";
 @import "@fontsource-variable/jetbrains-mono";
 
 /* Brand palette: deep navy + WhatsApp green on a light surface */
@@ -11,9 +12,9 @@
   --color-navy-600: #24527a;
   --color-wa: #25d366;
 
-  /* Typography: Bricolage Grotesque across the whole site, JetBrains Mono for code */
-  --font-sans: 'Bricolage Grotesque Variable', ui-sans-serif, system-ui, sans-serif;
-  --font-display: 'Bricolage Grotesque Variable', ui-sans-serif, system-ui, sans-serif;
+  /* Typography: Work Sans across the whole site, JetBrains Mono for code */
+  --font-sans: 'Work Sans Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Work Sans Variable', ui-sans-serif, system-ui, sans-serif;
   --font-mono: 'JetBrains Mono Variable', ui-monospace, SFMono-Regular, Menlo, monospace;
 
   --animate-float: float 6s ease-in-out infinite;

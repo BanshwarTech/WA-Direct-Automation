@@ -1,121 +1,343 @@
-import React, { useState } from 'react';
-import { ChevronDown, HelpCircle, LifeBuoy, Wrench } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import {
+  ArrowRight,
+  BookOpen,
+  CheckCircle2,
+  FileSpreadsheet,
+  HelpCircle,
+  LifeBuoy,
+  Link2,
+  PenLine,
+  QrCode,
+  Search,
+  Send,
+  Server,
+  ShieldCheck,
+  UserPlus,
+  Users,
+  Wrench,
+  X,
+} from 'lucide-react';
 import { PageShell, Highlight } from '../components/PageShell';
 import { AntiBanTips } from '../components/AntiBanTips';
+import { FaqAccordion, FaqItem } from '../components/HomeFaq';
+import { btnPrimary } from '../components/ui';
+import { Eyebrow } from '../components/Eyebrow';
 
-const TROUBLESHOOTING = [
+const STEPS = [
+  { icon: UserPlus, title: 'Create your account', text: 'Sign up with your name, email and mobile number. It takes less than a minute.' },
+  { icon: QrCode, title: 'Link your WhatsApp', text: 'Open Send Messages and scan the QR code from WhatsApp → Linked Devices on your phone.' },
+  { icon: PenLine, title: 'Write or pick a message', text: 'Start from a template, a saved message or the AI Composer, and fill in any {variables}.' },
+  { icon: Send, title: 'Send single or bulk', text: 'Send to one number, or upload an Excel sheet to personalise a message for every customer.' },
+];
+
+type Audience = 'everyone' | 'admin';
+
+const TROUBLESHOOTING: { problem: string; fix: string; icon: React.ElementType; audience: Audience }[] = [
   {
-    problem: '"Unable to reach the server" or "Server offline"',
-    fix: 'The app server is not running or is running old code. Stop it with Ctrl + C in the terminal and start it again with npm run dev.',
+    icon: QrCode,
+    audience: 'everyone',
+    problem: 'The QR code does not appear',
+    fix: 'Wait a few seconds and refresh the page. If it still does not show, ask the administrator to restart the server.',
   },
   {
-    problem: '"Port 3000 is already in use"',
-    fix: 'Another copy of the app is still running. Close the other terminal, or stop the process that is using port 3000, then start again.',
+    icon: Link2,
+    audience: 'everyone',
+    problem: 'WhatsApp got unlinked',
+    fix: 'If the device was removed from your phone, or the phone was offline for over 14 days, a fresh QR code appears automatically. Scan it again to re-link.',
   },
   {
-    problem: 'QR code does not appear',
-    fix: 'Wait a few seconds after starting the server. If it still does not appear, restart the server and refresh the page.',
-  },
-  {
+    icon: Users,
+    audience: 'everyone',
     problem: '"<number> is not on WhatsApp"',
     fix: 'Check the number and country code. The recipient must have an active WhatsApp account.',
   },
   {
-    problem: 'AI Composer shows an NVIDIA API error',
-    fix: 'Check that NVIDIA_API_KEY in .env is valid, then restart the server. Errors mentioning "end of life" mean the model was retired; choose another model from the list.',
+    icon: FileSpreadsheet,
+    audience: 'everyone',
+    problem: 'Excel upload says "No phone column found"',
+    fix: 'Row 1 must contain column names. Name the phone column "phone" (mobile, number or whatsapp also work). Use Download sample Excel for a ready-made sheet.',
   },
   {
-    problem: 'WhatsApp got unlinked',
-    fix: 'If you removed the device from your phone, the app shows a fresh QR code automatically. Scan it again to re-link.',
+    icon: PenLine,
+    audience: 'everyone',
+    problem: 'A bulk message failed with "Missing: …"',
+    fix: 'The message uses a {variable} that this recipient has no value for. Add a column with that exact name to your sheet, fill it in, and load the list again.',
+  },
+  {
+    icon: Server,
+    audience: 'admin',
+    problem: '"Unable to reach the server" or "Server offline"',
+    fix: 'The app server is not running or is running old code. Stop it with Ctrl + C in the terminal and start it again with npm run dev.',
+  },
+  {
+    icon: Server,
+    audience: 'admin',
+    problem: '"Port 3000 is already in use"',
+    fix: 'Another copy of the app is still running. Close the other terminal, or stop the process that is using port 3000, then start again.',
+  },
+  {
+    icon: Wrench,
+    audience: 'admin',
+    problem: 'The AI Composer shows an NVIDIA API error',
+    fix: 'Check that NVIDIA_API_KEY in .env is valid, then restart the server. Errors mentioning "end of life" mean the model was retired; choose another model from the list.',
   },
 ];
 
-const FAQS = [
+const FAQS: (FaqItem & { a: string })[] = [
   {
-    q: 'Do I need a Meta Business Account, a credit card, or a Facebook App?',
-    a: 'No. The Meta Cloud API requires business verification and per-message fees. This app links to your WhatsApp as a device, the same way WhatsApp Desktop does, so no Meta account is needed.',
+    q: 'Do I need a Meta Business account, a credit card or a Facebook app?',
+    a: 'No. The official Meta Cloud API needs business verification and charges per message. This app links to your WhatsApp as a device, the same way WhatsApp Desktop does, so no Meta account is needed.',
   },
   {
     q: 'Does it open WhatsApp Web or Chrome?',
-    a: 'No. Messages are sent over WhatsApp\'s own protocol from the server in the background. Nothing opens on screen.',
+    a: "No. Messages are sent over WhatsApp's own protocol from the server in the background. Nothing opens on your screen.",
+  },
+  {
+    q: 'How do I send a personalised message to a customer list?',
+    a: 'Open Send Messages → Bulk, click Download sample Excel, fill in one row per customer and upload it. Each column fills the matching {variable} in your message, and messages go out with a safe 3–8 second gap.',
+  },
+  {
+    q: 'What are message variables like {order_id}?',
+    a: 'Placeholders that are replaced with real details before sending. In Single mode you type the values in the boxes under the editor; in Bulk mode they come from your Excel columns. {name} is always filled from the recipient name.',
+  },
+  {
+    q: 'How do I save and reuse my messages?',
+    a: 'Click Save next to the message list to keep the current message. Every message generated by the AI Composer is also kept in your AI history. Pick any of them, or a ready-made template, from the list above the editor.',
   },
   {
     q: 'Is my WhatsApp login stored safely?',
-    a: 'The session is stored locally in the gateway_auth folder on your computer and never leaves it. Anyone with access to that folder could use your WhatsApp, so do not share it. You can unlink at any time from the Send Messages page or from your phone.',
-  },
-  {
-    q: 'How do I get an NVIDIA API key?',
-    a: 'Create a free account at build.nvidia.com, generate an API key (nvapi-...), add it to the .env file as NVIDIA_API_KEY, and restart the server.',
+    a: 'Each account has its own session, stored on the server running this app and never shared with anyone else. You can unlink at any time from the Send Messages page or from your phone.',
   },
   {
     q: 'Can I send messages from my own software?',
-    a: 'Yes. While the app is running and WhatsApp is linked, send a POST request to http://localhost:3000/api/wa/send with { "phone": "91...", "message": "..." }. See the project README for the full API reference.',
-  },
-  {
-    q: 'Can the AI reply to customers automatically?',
-    a: 'Yes, with the NVIDIA AI auto-reply script on the Scripts page. Review its replies first: the AI does not know your real order data and may invent details such as amounts or tracking numbers.',
+    a: 'Yes, the administrator can. With WhatsApp linked, send a POST request to /api/wa/send with a phone number and message, using the API key and examples on the Scripts page.',
   },
   {
     q: 'Can my number get banned?',
-    a: 'Yes, if WhatsApp detects spam-like behaviour. This is not the official business API. Follow the anti-ban guidelines on this page and only message people who expect to hear from you.',
+    a: 'Yes, if WhatsApp detects spam-like behaviour, because this is not the official business API. Follow the anti-ban guidelines on this page and only message people who expect to hear from you.',
   },
 ];
 
-const SectionTitle: React.FC<{ icon: React.ReactNode; title: string }> = ({ icon, title }) => (
-  <div className="flex items-center gap-3">
-    <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-green-500 to-emerald-700 text-white shadow-md shadow-green-600/30">{icon}</span>
-    <h2 className="text-xl font-bold text-navy-900">{title}</h2>
+const TOPICS = [
+  { href: '#getting-started', icon: BookOpen, title: 'Getting started', text: 'Set up in 4 steps' },
+  { href: '#troubleshooting', icon: Wrench, title: 'Troubleshooting', text: `${TROUBLESHOOTING.length} common fixes` },
+  { href: '#stay-safe', icon: ShieldCheck, title: 'Stay safe', text: 'Anti-ban guidelines' },
+  { href: '#faq', icon: HelpCircle, title: 'FAQ', text: `${FAQS.length} answers` },
+];
+
+const card = 'rounded-3xl border border-slate-200/80 bg-white shadow-[0_1px_2px_rgba(10,31,51,0.04),0_12px_32px_-12px_rgba(10,31,51,0.14)]';
+
+const SectionHeading: React.FC<{ id: string; eyebrow: string; title: React.ReactNode; text: string; icon: React.ElementType }> = ({
+  id,
+  eyebrow,
+  title,
+  text,
+  icon: Icon,
+}) => (
+  <div id={id} className="scroll-mt-28 space-y-2">
+    <Eyebrow icon={<Icon className="h-3.5 w-3.5" />}>{eyebrow}</Eyebrow>
+    <h2 className="text-2xl font-black tracking-tight text-navy-900 md:text-3xl">{title}</h2>
+    <p className="max-w-2xl text-sm leading-relaxed text-slate-500 md:text-base">{text}</p>
   </div>
 );
 
+const matches = (query: string, ...fields: string[]) => {
+  const q = query.trim().toLowerCase();
+  return !q || fields.some((f) => f.toLowerCase().includes(q));
+};
+
 export const HelpPage: React.FC = () => {
-  const [openFaq, setOpenFaq] = useState<number | null>(0);
+  const [query, setQuery] = useState('');
+  const searching = query.trim().length > 0;
+
+  const fixes = useMemo(() => TROUBLESHOOTING.filter((t) => matches(query, t.problem, t.fix)), [query]);
+  const faqs = useMemo(() => FAQS.filter((f) => matches(query, f.q, f.a)), [query]);
+  const everyoneFixes = fixes.filter((t) => t.audience === 'everyone');
+  const adminFixes = fixes.filter((t) => t.audience === 'admin');
+
+  const searchBox = (
+    <div className="w-full md:max-w-sm">
+      <label className="relative block">
+        <span className="sr-only">Search the Help Center</span>
+        <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search problems and questions…"
+          className="w-full rounded-2xl border border-slate-200 bg-white/90 py-3.5 pl-12 pr-10 text-sm text-navy-900 shadow-[0_12px_32px_-12px_rgba(10,31,51,0.25)] backdrop-blur placeholder:text-slate-400 transition focus:border-green-500 focus:outline-none focus:ring-4 focus:ring-green-500/15"
+        />
+        {searching && (
+          <button
+            type="button"
+            onClick={() => setQuery('')}
+            aria-label="Clear search"
+            className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-navy-900"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
+      </label>
+      <p className="mt-2 text-xs text-slate-500">
+        {searching ? `${fixes.length + faqs.length} result${fixes.length + faqs.length === 1 ? '' : 's'} for “${query.trim()}”` : 'Try “QR code”, “Excel” or “banned”'}
+      </p>
+    </div>
+  );
+
+  const fixCard = (t: (typeof TROUBLESHOOTING)[number]) => (
+    <div key={t.problem} className="group flex gap-4 rounded-2xl border border-slate-200 bg-white p-5 transition hover:border-green-200 hover:shadow-[0_12px_32px_-16px_rgba(22,163,74,0.3)]">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-green-50 text-green-600 transition group-hover:bg-green-600 group-hover:text-white">
+        <t.icon className="h-5 w-5" />
+      </span>
+      <div className="min-w-0">
+        <h3 className="text-sm font-bold text-navy-900">{t.problem}</h3>
+        <p className="mt-1.5 text-sm leading-relaxed text-slate-500">{t.fix}</p>
+      </div>
+    </div>
+  );
 
   return (
     <PageShell
       eyebrow="Help Center"
       icon={<LifeBuoy className="h-3.5 w-3.5" />}
       title={<>How can we <Highlight>help</Highlight>?</>}
-      description="Fix common problems, keep your WhatsApp number safe, and find answers to frequent questions. Setup instructions are in the project README."
+      description="Guides, quick fixes and answers to common questions, so you can get back to sending messages."
+      aside={searchBox}
     >
-
-      <section className="rounded-3xl border border-slate-200/80 bg-white p-6 md:p-8 space-y-5 shadow-[0_1px_2px_rgba(10,31,51,0.04),0_12px_32px_-12px_rgba(10,31,51,0.14)]">
-        <SectionTitle icon={<Wrench className="h-5 w-5" />} title="Troubleshooting" />
-        <dl className="grid gap-5 md:grid-cols-2">
-          {TROUBLESHOOTING.map((t) => (
-            <div key={t.problem} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-              <dt className="text-sm font-semibold text-navy-900">{t.problem}</dt>
-              <dd className="mt-1 text-sm text-slate-500 leading-relaxed">{t.fix}</dd>
-            </div>
+      {/* Topic cards */}
+      {!searching && (
+        <nav aria-label="Help topics" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {TOPICS.map((t) => (
+            <a key={t.href} href={t.href} className={`${card} group flex items-center gap-4 p-5 transition hover:-translate-y-0.5 hover:border-green-200`}>
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-green-500 to-emerald-700 text-white shadow-md shadow-green-600/30">
+                <t.icon className="h-5 w-5" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block font-bold text-navy-900">{t.title}</span>
+                <span className="block text-xs text-slate-500">{t.text}</span>
+              </span>
+              <ArrowRight className="h-4 w-4 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-green-600" />
+            </a>
           ))}
-        </dl>
-      </section>
+        </nav>
+      )}
 
-      <AntiBanTips />
+      <div className="space-y-20 pt-8">
+        {/* Getting started */}
+        {!searching && (
+          <section className="space-y-8">
+            <SectionHeading
+              id="getting-started"
+              icon={BookOpen}
+              eyebrow="Getting started"
+              title={<>From sign-up to first message in <Highlight>4 steps</Highlight></>}
+              text="No Meta account, no WhatsApp Web and no extra phone. Everything runs from your browser."
+            />
+            <ol className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {STEPS.map((step, i) => (
+                <li key={step.title} className={`${card} relative overflow-hidden p-6`}>
+                  <span aria-hidden className="absolute -right-2 -top-4 text-7xl font-black text-slate-100">
+                    {i + 1}
+                  </span>
+                  <span className="relative flex h-11 w-11 items-center justify-center rounded-xl bg-navy-900 text-wa shadow-lg">
+                    <step.icon className="h-5 w-5" />
+                  </span>
+                  <h3 className="relative mt-4 font-bold text-navy-900">{step.title}</h3>
+                  <p className="relative mt-1.5 text-sm leading-relaxed text-slate-500">{step.text}</p>
+                </li>
+              ))}
+            </ol>
+          </section>
+        )}
 
-      <section className="rounded-3xl border border-slate-200/80 bg-white p-6 md:p-8 space-y-5 shadow-[0_1px_2px_rgba(10,31,51,0.04),0_12px_32px_-12px_rgba(10,31,51,0.14)]">
-        <SectionTitle icon={<HelpCircle className="h-5 w-5" />} title="Frequently asked questions" />
-        <div className="space-y-3">
-          {FAQS.map((faq, i) => (
-            <div key={faq.q} className="rounded-xl border border-slate-200 bg-slate-50 overflow-hidden">
-              <button
-                type="button"
-                onClick={() => setOpenFaq(openFaq === i ? null : i)}
-                aria-expanded={openFaq === i}
-                className="w-full flex items-center justify-between gap-4 p-4 text-left text-sm font-semibold text-navy-900 hover:text-green-700"
+        {/* Troubleshooting */}
+        {fixes.length > 0 && (
+          <section className="space-y-8">
+            <SectionHeading
+              id="troubleshooting"
+              icon={Wrench}
+              eyebrow="Troubleshooting"
+              title="Quick fixes for common problems"
+              text="Most issues are solved in under a minute. Find the message you are seeing below."
+            />
+            {everyoneFixes.length > 0 && <div className="grid gap-4 md:grid-cols-2">{everyoneFixes.map(fixCard)}</div>}
+            {adminFixes.length > 0 && (
+              <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50/70 p-5 md:p-6">
+                <div className="mb-4 flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-navy-900 px-3 py-1 text-xs font-semibold text-white">
+                    <Server className="h-3.5 w-3.5 text-wa" /> For administrators
+                  </span>
+                  <span className="text-xs text-slate-500">Server-side fixes for whoever runs the app.</span>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">{adminFixes.map(fixCard)}</div>
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* Anti-ban guidelines */}
+        {!searching && (
+          <section id="stay-safe" className="scroll-mt-28">
+            <AntiBanTips />
+          </section>
+        )}
+
+        {/* FAQ, two per row */}
+        {faqs.length > 0 && (
+          <section className="space-y-8">
+            <SectionHeading
+              id="faq"
+              icon={HelpCircle}
+              eyebrow="FAQ"
+              title={<>Frequently asked <Highlight>questions</Highlight></>}
+              text="Short answers to the questions we hear most often."
+            />
+            <FaqAccordion key={query} items={faqs} expandAll={searching} idPrefix="help-faq" columns={2} />
+          </section>
+        )}
+
+        {searching && fixes.length === 0 && faqs.length === 0 && (
+          <div className={`${card} p-10 text-center`}>
+            <Search className="mx-auto h-8 w-8 text-slate-300" />
+            <h2 className="mt-3 text-lg font-bold text-navy-900">No results for “{query.trim()}”</h2>
+            <p className="mt-1 text-sm text-slate-500">Try a shorter word, such as “QR”, “Excel” or “AI”.</p>
+            <button type="button" onClick={() => setQuery('')} className="mt-4 text-sm font-semibold text-green-700 hover:text-green-800">
+              Clear search
+            </button>
+          </div>
+        )}
+
+        {/* Closing card */}
+        <section className="relative overflow-hidden rounded-3xl bg-navy-900 p-8 md:p-10">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 bg-[radial-gradient(50%_80%_at_100%_100%,rgba(37,211,102,0.2),transparent_70%)]"
+          />
+          <div className="relative flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+            <div className="space-y-2">
+              <Eyebrow tone="dark" icon={<CheckCircle2 className="h-3.5 w-3.5" />}>
+                Still need help?
+              </Eyebrow>
+              <h2 className="text-2xl font-black text-white md:text-3xl">Ready when you are</h2>
+              <p className="max-w-xl text-slate-300">
+                Head back to Send Messages, or browse the frequently asked questions again.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <a href="/send" className={btnPrimary}>
+                <Send className="h-4 w-4" /> Send Messages
+              </a>
+              <a
+                href="#faq"
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/5 px-6 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
               >
-                <span>{faq.q}</span>
-                <ChevronDown
-                  className={`h-4 w-4 shrink-0 text-slate-500 transition-transform ${openFaq === i ? 'rotate-180 text-green-600' : ''}`}
-                />
-              </button>
-              {openFaq === i && (
-                <div className="border-t border-slate-200 bg-slate-50 p-4 text-sm text-slate-600 leading-relaxed">{faq.a}</div>
-              )}
+                <HelpCircle className="h-4 w-4" /> Browse FAQ
+              </a>
             </div>
-          ))}
-        </div>
-      </section>
+          </div>
+        </section>
+      </div>
     </PageShell>
   );
 };

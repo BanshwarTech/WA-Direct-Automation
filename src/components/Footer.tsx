@@ -12,6 +12,7 @@ const COLUMNS = [
       { label: 'Send Messages', href: '/send' },
       { label: 'Bulk Sending', href: '/send' },
       { label: 'AI Composer', href: '/ai' },
+      { label: 'Pricing', href: '/pricing' },
     ],
   },
   {

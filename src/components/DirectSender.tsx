@@ -1,10 +1,12 @@
 import React, { useRef, useState } from 'react';
-import { Send, Copy, Check, ExternalLink, Trash2, Smartphone, Users, AlertCircle, Loader2, LogOut, X, Upload, Download, FileSpreadsheet } from 'lucide-react';
+import { Send, Copy, Check, ExternalLink, Trash2, Smartphone, Users, AlertCircle, Loader2, LogOut, X, Upload, Download, FileSpreadsheet, Lock, ArrowRight } from 'lucide-react';
 import { Recipient } from '../types';
 import { Select } from './Select';
 import { MessageEditor, WhatsAppText } from './MessageEditor';
 import { MessagePicker } from './MessagePicker';
 import { useSavedMessages } from '../hooks/useSavedMessages';
+import { useBilling } from '../hooks/useBilling';
+import { UsageStrip } from './UsageStrip';
 import { inputCls, textareaCls, btnPrimary, btnPrimarySm, btnSecondary } from './ui';
 import { countryOptions, DEFAULT_COUNTRY, dialCode } from '../data/countries';
 import { WaStatus } from '../hooks/useWaStatus';
@@ -25,7 +27,8 @@ async function sendDirect(phone: string, message: string) {
     body: JSON.stringify({ phone, message }),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || `Send failed (${res.status})`);
+  // limitReached = the plan's monthly messages are used up (HTTP 402)
+  if (!res.ok) throw Object.assign(new Error(data.error || `Send failed (${res.status})`), { limitReached: Boolean(data.limitReached) });
   return data;
 }
 
@@ -36,9 +39,10 @@ interface Props {
   setMessage: React.Dispatch<React.SetStateAction<string>>;
   waStatus: WaStatus | null;
   savedMessages: ReturnType<typeof useSavedMessages>;
+  billing: ReturnType<typeof useBilling>;
 }
 
-export const DirectSender: React.FC<Props> = ({ phone, setPhone, message, setMessage, waStatus, savedMessages }) => {
+export const DirectSender: React.FC<Props> = ({ phone, setPhone, message, setMessage, waStatus, savedMessages, billing }) => {
   const [activeMode, setActiveMode] = useState<'single' | 'bulk'>('single');
   const [countryIso, setCountryIso] = useState(DEFAULT_COUNTRY);
   const countryCode = dialCode(countryIso);
@@ -46,7 +50,8 @@ export const DirectSender: React.FC<Props> = ({ phone, setPhone, message, setMes
   const [bulkInput, setBulkInput] = useState('');
   const [queue, setQueue] = useState<Recipient[]>([]);
   const [sending, setSending] = useState(false);
-  const [sendResult, setSendResult] = useState<{ ok: boolean; text: string } | null>(null);
+  const [sendResult, setSendResult] = useState<{ ok: boolean; text: string; upgrade?: boolean } | null>(null);
+  const [bulkLimitHit, setBulkLimitHit] = useState(false);
   const [bulkRunning, setBulkRunning] = useState(false);
   const stopBulk = useRef(false);
   // Values for {variables}, shared by both modes (keyed by variable name, so they survive template switches)
@@ -63,6 +68,10 @@ export const DirectSender: React.FC<Props> = ({ phone, setPhone, message, setMes
     ? cleanNumber
     : `${countryCode}${cleanNumber.replace(/^0+/, '')}`;
 
+  const features = billing.info?.usage.features;
+  const canExcel = features?.excelImport ?? true;
+  const canSave = features?.savedMessages ?? true;
+
   const messageVars = extractVariables(message);
   const filledMessage = fillVariables(message, varValues);
   const missingVars = messageVars.filter((v) => !varValues[v]?.trim());
@@ -78,7 +87,7 @@ export const DirectSender: React.FC<Props> = ({ phone, setPhone, message, setMes
   };
 
   // Pasted list columns follow the message: phone, name, then one column per other {variable}
-  const pasteVars = messageVars.filter((v) => v !== 'name');
+  const pasteVars = canExcel ? messageVars.filter((v) => v !== 'name') : [];
   const pasteColumns = ['phone', 'name', ...pasteVars];
   // Placeholder shows the column order by variable name, e.g. "phone, name, order_id, courier"
   const pasteExample = pasteColumns.join(', ');
@@ -145,8 +154,9 @@ export const DirectSender: React.FC<Props> = ({ phone, setPhone, message, setMes
     try {
       await sendDirect(fullPhone, filledMessage);
       setSendResult({ ok: true, text: `Message sent to +${fullPhone} ✓` });
+      billing.refresh();
     } catch (error: any) {
-      setSendResult({ ok: false, text: error.message });
+      setSendResult({ ok: false, text: error.message, upgrade: error.limitReached });
     } finally {
       setSending(false);
     }
@@ -157,32 +167,44 @@ export const DirectSender: React.FC<Props> = ({ phone, setPhone, message, setMes
 
   const personalize = (item: Recipient) => fillVariables(message, { ...item.customData, name: item.name });
 
-  /** Returns false when the item was not sent because variables are missing (so no anti-ban delay is needed) */
-  const handleSendQueueItem = async (item: Recipient) => {
+  /**
+   * "skipped" = not sent because variables are missing (no anti-ban delay needed),
+   * "limit" = the plan's messages are used up (the item stays pending), "done" = sent or failed
+   */
+  const handleSendQueueItem = async (item: Recipient): Promise<'skipped' | 'limit' | 'done'> => {
     const personalizedMsg = personalize(item);
     const unfilled = extractVariables(personalizedMsg);
     if (unfilled.length) {
       updateQueueItem(item.id, { status: 'failed', error: `Missing: ${unfilled.map(variableLabel).join(', ')}` });
-      return false;
+      return 'skipped';
     }
     updateQueueItem(item.id, { status: 'sending', error: undefined });
     try {
       await sendDirect(item.phone, personalizedMsg);
       updateQueueItem(item.id, { status: 'sent' });
+      billing.refresh();
     } catch (error: any) {
+      if (error.limitReached) {
+        updateQueueItem(item.id, { status: 'pending', error: undefined });
+        setBulkLimitHit(true);
+        return 'limit';
+      }
       updateQueueItem(item.id, { status: 'failed', error: error.message });
     }
-    return true;
+    return 'done';
   };
 
   const handleSendAll = async () => {
     stopBulk.current = false;
+    setBulkLimitHit(false);
     setBulkRunning(true);
     const pending = queue.filter((q) => q.status === 'pending' || q.status === 'failed');
     for (let i = 0; i < pending.length; i++) {
       if (stopBulk.current) break;
-      const attempted = await handleSendQueueItem(pending[i]);
-      if (attempted && i < pending.length - 1) await sleep(randomDelay());
+      const outcome = await handleSendQueueItem(pending[i]);
+      // Out of messages: stop here; the rest stay pending and can be sent after upgrading
+      if (outcome === 'limit') break;
+      if (outcome === 'done' && i < pending.length - 1) await sleep(randomDelay());
     }
     setBulkRunning(false);
   };
@@ -265,6 +287,16 @@ export const DirectSender: React.FC<Props> = ({ phone, setPhone, message, setMes
         </div>
       )}
 
+      <UsageStrip billing={billing} />
+      {bulkLimitHit && activeMode === 'bulk' && (
+        <Notice tone="warning" onDismiss={() => setBulkLimitHit(false)} className="mt-5">
+          Bulk sending stopped: your plan&apos;s messages are used up. The remaining recipients are still in the queue.{' '}
+          <a href="/pricing" className="font-semibold underline underline-offset-2">
+            Upgrade to continue →
+          </a>
+        </Notice>
+      )}
+
       {activeMode === 'single' ? (
         <div className="mt-6 grid gap-6 lg:grid-cols-12">
           {/* Inputs Section */}
@@ -308,7 +340,7 @@ export const DirectSender: React.FC<Props> = ({ phone, setPhone, message, setMes
                 Message Content
               </label>
               <div className="mt-2 space-y-2">
-                <MessagePicker message={message} setMessage={setMessage} library={savedMessages} />
+                <MessagePicker message={message} setMessage={setMessage} library={savedMessages} canSave={canSave} />
                 <MessageEditor
                   value={message}
                   onChange={setMessage}
@@ -345,6 +377,14 @@ export const DirectSender: React.FC<Props> = ({ phone, setPhone, message, setMes
             {sendResult && (
               <Notice tone={sendResult.ok ? 'success' : 'error'} onDismiss={() => setSendResult(null)}>
                 {sendResult.text}
+                {sendResult.upgrade && (
+                  <>
+                    {' '}
+                    <a href="/pricing" className="font-semibold underline underline-offset-2">
+                      See plans →
+                    </a>
+                  </>
+                )}
               </Notice>
             )}
           </div>
@@ -390,42 +430,57 @@ export const DirectSender: React.FC<Props> = ({ phone, setPhone, message, setMes
                 Bulk Recipient List
               </label>
 
-              {/* Excel / CSV upload: columns phone, name and one column per {variable} */}
-              <div className="rounded-xl border-2 border-dashed border-slate-300 bg-slate-50/60 p-4 text-center">
-                <FileSpreadsheet className="mx-auto h-7 w-7 text-green-600" />
-                <p className="mt-1.5 text-sm font-semibold text-navy-900">Upload an Excel or CSV file</p>
-                <p className="mt-0.5 text-[11px] text-slate-500">
-                  Columns: <code className="text-green-600">phone</code>, <code className="text-green-600">name</code>, plus one column per message variable
-                  {messageVars.filter((v) => v !== 'name').length > 0 && (
-                    <> (e.g. <code className="text-green-600">{messageVars.filter((v) => v !== 'name').slice(0, 3).join(', ')}</code>)</>
-                  )}
-                </p>
-                <input
-                  ref={fileRef}
-                  type="file"
-                  accept=".xlsx,.xls,.csv"
-                  className="hidden"
-                  onChange={(e) => e.target.files?.[0] && handleImportFile(e.target.files[0])}
-                />
-                <div className="mt-3 flex flex-wrap justify-center gap-2">
-                  <button type="button" onClick={() => fileRef.current?.click()} disabled={importing || bulkRunning} className={btnPrimarySm}>
-                    {importing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
-                    {importing ? 'Reading…' : 'Upload Excel / CSV'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => downloadSampleSheet(messageVars)}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                  >
-                    <Download className="h-3 w-3" /> Download sample Excel
-                  </button>
+              {/* Excel / CSV upload (Basic / Pro): columns phone, name and one column per {variable} */}
+              {!canExcel ? (
+                <div className="rounded-xl border-2 border-dashed border-slate-300 bg-slate-50/60 p-4 text-center">
+                  <span className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-white text-slate-400 ring-1 ring-slate-200">
+                    <Lock className="h-5 w-5" />
+                  </span>
+                  <p className="mt-2 text-sm font-semibold text-navy-900">Excel upload with variables</p>
+                  <p className="mx-auto mt-0.5 max-w-xs text-[11px] text-slate-500">
+                    Upload a customer sheet and fill details like order ID or amount for every recipient. Included in Basic and Pro.
+                  </p>
+                  <a href="/pricing" className={`${btnPrimarySm} mt-3`}>
+                    Upgrade to unlock <ArrowRight className="h-3 w-3" />
+                  </a>
                 </div>
-                {importInfo && (
-                  <Notice tone={importInfo.ok ? 'success' : 'error'} onDismiss={() => setImportInfo(null)} compact className="mt-3">
-                    {importInfo.text}
-                  </Notice>
-                )}
-              </div>
+              ) : (
+                <div className="rounded-xl border-2 border-dashed border-slate-300 bg-slate-50/60 p-4 text-center">
+                  <FileSpreadsheet className="mx-auto h-7 w-7 text-green-600" />
+                  <p className="mt-1.5 text-sm font-semibold text-navy-900">Upload an Excel or CSV file</p>
+                  <p className="mt-0.5 text-[11px] text-slate-500">
+                    Columns: <code className="text-green-600">phone</code>, <code className="text-green-600">name</code>, plus one column per message variable
+                    {messageVars.filter((v) => v !== 'name').length > 0 && (
+                      <> (e.g. <code className="text-green-600">{messageVars.filter((v) => v !== 'name').slice(0, 3).join(', ')}</code>)</>
+                    )}
+                  </p>
+                  <input
+                    ref={fileRef}
+                    type="file"
+                    accept=".xlsx,.xls,.csv"
+                    className="hidden"
+                    onChange={(e) => e.target.files?.[0] && handleImportFile(e.target.files[0])}
+                  />
+                  <div className="mt-3 flex flex-wrap justify-center gap-2">
+                    <button type="button" onClick={() => fileRef.current?.click()} disabled={importing || bulkRunning} className={btnPrimarySm}>
+                      {importing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
+                      {importing ? 'Reading…' : 'Upload Excel / CSV'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => downloadSampleSheet(messageVars)}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                    >
+                      <Download className="h-3 w-3" /> Download sample Excel
+                    </button>
+                  </div>
+                  {importInfo && (
+                    <Notice tone={importInfo.ok ? 'success' : 'error'} onDismiss={() => setImportInfo(null)} compact className="mt-3">
+                      {importInfo.text}
+                    </Notice>
+                  )}
+                </div>
+              )}
 
               <p className="text-xs text-slate-500">
                 Or paste one recipient per line: <code className="text-green-600">{pasteColumns.join(', ')}</code>
@@ -451,7 +506,7 @@ export const DirectSender: React.FC<Props> = ({ phone, setPhone, message, setMes
               <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600">
                 Bulk Message Template (Use <span className="text-green-600">{"{name}"}</span> variable)
               </label>
-              <MessagePicker message={message} setMessage={setMessage} library={savedMessages} />
+              <MessagePicker message={message} setMessage={setMessage} library={savedMessages} canSave={canSave} />
               <MessageEditor
                 rows={6}
                 value={message}
@@ -464,9 +519,17 @@ export const DirectSender: React.FC<Props> = ({ phone, setPhone, message, setMes
               </p>
               {queue.length > 0 && missingColumns.length > 0 && (
                 <Notice tone="warning" compact>
-                    The loaded list has no column for{' '}
-                    <strong>{missingColumns.map(variableLabel).join(', ')}</strong>. Use <em>Download sample Excel</em> to get a sheet with all
-                    the right columns.
+                    {canExcel ? 'The loaded list has no column for' : 'On the Free plan, bulk lists only fill {name}. This message also needs'}{' '}
+                    <strong>{missingColumns.map(variableLabel).join(', ')}</strong>.{' '}
+                    {canExcel ? (
+                      <>
+                        Use <em>Download sample Excel</em> to get a sheet with all the right columns.
+                      </>
+                    ) : (
+                      <a href="/pricing" className="font-semibold underline underline-offset-2">
+                        Upgrade to fill them per recipient from Excel →
+                      </a>
+                    )}
                 </Notice>
               )}
             </div>

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowRight, ChevronDown, FileCode, KeyRound, LifeBuoy, LogOut, Menu, Send, Sparkles, X } from 'lucide-react';
+import { ArrowRight, ChevronDown, CreditCard, FileCode, KeyRound, LifeBuoy, LogOut, Menu, Send, Sparkles, X } from 'lucide-react';
 import { ADMIN_ROUTES, navigate, Route } from '../hooks/useRoute';
 import { AuthUser, useAuth } from '../auth/AuthContext';
 import { WaStatus } from '../hooks/useWaStatus';
@@ -10,6 +10,7 @@ export const NAV_ITEMS: { route: Route; label: string; href: string; icon: React
   { route: 'send', label: 'Send Messages', href: '/send', icon: Send, hint: 'Single & bulk' },
   { route: 'ai', label: 'AI Composer', href: '/ai', icon: Sparkles, hint: 'Write with AI' },
   { route: 'scripts', label: 'Scripts', href: '/scripts', icon: FileCode, hint: 'Bots & API' },
+  { route: 'pricing', label: 'Pricing', href: '/pricing', icon: CreditCard, hint: 'Plans & billing' },
   { route: 'help', label: 'Help', href: '/help', icon: LifeBuoy, hint: 'Guides & FAQ' },
 ];
 
@@ -164,6 +165,7 @@ const UserMenu: React.FC<{ user: AuthUser; waStatus: WaStatus | null; onLogout: 
             {[
               { href: '/send', icon: Send, label: 'Send Messages', hint: 'Single & bulk sending' },
               { href: '/ai', icon: Sparkles, label: 'AI Composer', hint: 'Write messages with AI' },
+              { href: '/pricing', icon: CreditCard, label: 'Plan & billing', hint: 'Usage, upgrade, autopay' },
               ...(user.role === 'owner'
                 ? [{ href: '/scripts', icon: KeyRound, label: 'API key & scripts', hint: 'Automate from your software' }]
                 : []),

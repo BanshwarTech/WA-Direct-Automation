@@ -10,6 +10,7 @@ import { NvidiaStudio } from './components/NvidiaStudio';
 import { HomePage } from './pages/HomePage';
 import { ScriptsPage } from './pages/ScriptsPage';
 import { HelpPage } from './pages/HelpPage';
+import { PricingPage } from './pages/PricingPage';
 import { LoginPage, RegisterPage } from './pages/AuthPages';
 import { BackToTop } from './components/BackToTop';
 import { DialogHost } from './components/Dialog';
@@ -19,6 +20,7 @@ import { useWaStatus } from './hooks/useWaStatus';
 import { getScripts } from './data/scriptsData';
 import { DEFAULT_MESSAGE } from './data/messageTemplates';
 import { useSavedMessages } from './hooks/useSavedMessages';
+import { useBilling } from './hooks/useBilling';
 import { ScriptLanguage } from './types';
 import { PAGE_META } from './seo';
 
@@ -54,6 +56,7 @@ function AppShell({ initialRoute }: { initialRoute: Route }) {
   const [phone, setPhone] = useState('');
   const [message, setMessage] = useState(DEFAULT_MESSAGE);
   const savedMessages = useSavedMessages(Boolean(user));
+  const billing = useBilling(Boolean(user));
   const [selectedScriptId, setSelectedScriptId] = useState<ScriptLanguage>('nvidia-bot');
 
   // Scripts embed the current phone & message
@@ -109,6 +112,7 @@ function AppShell({ initialRoute }: { initialRoute: Route }) {
               setMessage={setMessage}
               waStatus={waStatus}
               savedMessages={savedMessages}
+              billing={billing}
             />
           </PageShell>
         )}
@@ -133,6 +137,8 @@ function AppShell({ initialRoute }: { initialRoute: Route }) {
         )}
 
         {route === 'help' && <HelpPage />}
+
+        {route === 'pricing' && <PricingPage />}
 
 
       </main>

@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import { adoptLegacySession, getWhatsAppStatus, logoutWhatsApp, restoreWhatsAppSessions, sendWhatsAppText } from './whatsapp';
 import { registerScenarioRoutes } from './scenarios';
 import { registerMessageRoutes } from './messages';
+import { getUsage, recordMessageSent, registerBillingRoutes } from './billing';
 import { attachUser, registerAuthRoutes, registrationOpen, requireAuth, requireJson, PublicUser } from './auth';
 
 dotenv.config();
@@ -17,7 +18,15 @@ const app = express();
 const PORT = parseInt(process.env.PORT || '3000', 10);
 const isProd = process.env.NODE_ENV === 'production' || process.argv.includes('--prod');
 
-app.use(express.json({ limit: '100kb' }));
+// rawBody is kept for the Razorpay webhook, whose signature covers the exact bytes received
+app.use(
+  express.json({
+    limit: '100kb',
+    verify: (req, _res, buf) => {
+      (req as Request & { rawBody?: Buffer }).rawBody = buf;
+    },
+  })
+);
 
 // Accounts: every request is tagged with the logged-in user (session cookie or API key).
 // WhatsApp and AI endpoints require an account; each account uses its own WhatsApp session.
@@ -30,6 +39,7 @@ registerAuthRoutes(app, {
 app.use(['/api/wa', '/api/nvidia'], requireJson, requireAuth);
 registerScenarioRoutes(app);
 registerMessageRoutes(app);
+registerBillingRoutes(app);
 
 const NVIDIA_API_BASE = 'https://integrate.api.nvidia.com/v1';
 
@@ -227,6 +237,7 @@ Additional Context/Details: ${context || 'None'}`;
 // Only public pages: /send and /ai require an account, /scripts is admin-only
 const SITE_PAGES = [
   { path: '/', priority: '1.0' },
+  { path: '/pricing', priority: '0.8' },
   { path: '/help', priority: '0.6' },
   { path: '/register', priority: '0.5' },
   { path: '/login', priority: '0.4' },
@@ -264,8 +275,18 @@ app.post('/api/wa/send', async (req: Request, res: Response) => {
     return res.status(400).json({ error: 'phone and message are required' });
   }
 
+  // Plan limit: every successful send counts; the admin account is unlimited
+  const usage = getUsage(req.user!);
+  if (!usage.unlimited && usage.remaining <= 0) {
+    return res.status(402).json({
+      error: `You have used all ${usage.limit.toLocaleString('en-IN')} messages in your ${usage.planName} plan. Upgrade on the Pricing page to keep sending.`,
+      limitReached: true,
+    });
+  }
+
   try {
     const result = await sendWhatsAppText(req.user!.id, String(phone), String(message));
+    recordMessageSent(req.user!.id);
     return res.json({ success: true, ...result });
   } catch (error: any) {
     return res.status(error?.status || 500).json({ error: error?.message || 'Failed to send message' });

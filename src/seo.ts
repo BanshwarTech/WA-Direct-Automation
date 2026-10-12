@@ -31,6 +31,11 @@ export const PAGE_META: Record<Route, { title: string; description: string }> = 
     description:
       'Create a free WA Direct Automation account, link your own WhatsApp with a QR code, and start sending messages in about a minute.',
   },
+  pricing: {
+    title: 'Pricing | WA Direct Automation',
+    description:
+      'Simple WhatsApp messaging plans: start free with 50 messages, or choose Basic or Pro. Pay once for 30 days or turn on monthly autopay with Razorpay.',
+  },
   help: {
     title: 'Help Center | WA Direct Automation',
     description:

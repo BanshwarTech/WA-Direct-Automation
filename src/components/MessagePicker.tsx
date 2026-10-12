@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Bookmark, BookmarkCheck, History, Loader2, Sparkles } from 'lucide-react';
+import { Bookmark, BookmarkCheck, History, Loader2, Lock, Sparkles } from 'lucide-react';
+import { navigate } from '../hooks/useRoute';
 import { Select, SelectOption } from './Select';
 import { confirmDialog, promptDialog } from './Dialog';
 import { Notice } from './Notice';
@@ -10,6 +11,8 @@ interface Props {
   message: string;
   setMessage: (val: string) => void;
   library: ReturnType<typeof useSavedMessages>;
+  /** false on plans without saved messages: Save shows a lock and offers an upgrade */
+  canSave?: boolean;
 }
 
 const shortDate = (iso: string) =>
@@ -18,7 +21,7 @@ const shortDate = (iso: string) =>
 // Dropdown for loading a message into the editor: AI Composer messages, the user's saved messages and
 // built-in templates. The entry matching the editor text shows as selected; "Save" keeps the current text
 // (an AI history entry is promoted so it is no longer auto-trimmed).
-export const MessagePicker: React.FC<Props> = ({ message, setMessage, library }) => {
+export const MessagePicker: React.FC<Props> = ({ message, setMessage, library, canSave = true }) => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -68,6 +71,17 @@ export const MessagePicker: React.FC<Props> = ({ message, setMessage, library })
   };
 
   const saveCurrent = async () => {
+    if (!canSave) {
+      const upgrade = await confirmDialog({
+        title: 'Save messages on Basic or Pro',
+        message: 'Saving your own messages and keeping your AI Composer history are included in the Basic and Pro plans.',
+        confirmLabel: 'See plans',
+        cancelLabel: 'Not now',
+        icon: <Lock className="h-5 w-5" />,
+      });
+      if (upgrade) navigate('pricing');
+      return;
+    }
     if (!message.trim() || isSaved) return;
     const title = await promptDialog({
       title: 'Save this message',
@@ -109,12 +123,12 @@ export const MessagePicker: React.FC<Props> = ({ message, setMessage, library })
         <button
           type="button"
           onClick={saveCurrent}
-          disabled={saving || isSaved || !message.trim()}
-          title={isSaved ? 'This message is already saved' : 'Save the current message for later'}
+          disabled={canSave && (saving || isSaved || !message.trim())}
+          title={!canSave ? 'Available on Basic and Pro plans' : isSaved ? 'This message is already saved' : 'Save the current message for later'}
           className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : isSaved ? <BookmarkCheck className="h-4 w-4 text-green-600" /> : <Bookmark className="h-4 w-4" />}
-          {isSaved ? 'Saved' : 'Save'}
+          {!canSave ? <Lock className="h-4 w-4 text-slate-400" /> : saving ? <Loader2 className="h-4 w-4 animate-spin" /> : isSaved ? <BookmarkCheck className="h-4 w-4 text-green-600" /> : <Bookmark className="h-4 w-4" />}
+          {canSave && isSaved ? 'Saved' : 'Save'}
         </button>
       </div>
       {error && (

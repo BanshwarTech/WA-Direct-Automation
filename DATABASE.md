@@ -10,8 +10,9 @@ This guide explains where the data lives, how to check it, and what every "table
 
 ```
 data/
-├── users.json              ← "users" table (and each user's saved scenarios and messages)
+├── users.json              ← "users" table (and each user's saved scenarios, messages and billing)
 ├── session-secret          ← key that signs login cookies
+├── razorpay-plans.json     ← Razorpay plan ids for autopay (created automatically)
 └── wa-sessions/
     └── <user-id>/          ← each user's linked WhatsApp session (Baileys files)
         ├── creds.json
@@ -77,6 +78,7 @@ The data is not in SQL tables, but it is organised like this:
 ```
 users (1) ──< scenarios (many)        stored inside each user record
 users (1) ──< savedMessages (many)    stored inside each user record
+users (1) ──  billing (0 or 1)        stored inside each user record
 users (1) ──  wa_session (0 or 1)     folder data/wa-sessions/<users.id>/
 ```
 
@@ -96,6 +98,7 @@ A JSON array; each element is one account.
 | `createdAt` | string (ISO 8601) | ✅ | When the account was created. | `2026-10-11T16:24:50.123Z` |
 | `scenarios` | array of `scenarios` | – | The user's saved AI Composer scenarios (see below). | `[ … ]` |
 | `savedMessages` | array of `savedMessages` | – | Saved messages and AI Composer history, listed on the Send Messages page (see below). | `[ … ]` |
+| `billing` | `billing` object | – | Message plan, usage and payments (see below). Missing = Free plan. | `{ … }` |
 
 Example record (secrets shortened):
 
@@ -144,7 +147,22 @@ Newest first. Every AI Composer generation is added automatically as an **AI his
 
 Limits: 50 saved messages per user. Only the latest 20 AI history entries are kept; older ones are removed automatically. Demo output (shown when `NVIDIA_API_KEY` is missing) is never stored.
 
-### 3.4 `wa_sessions` (folder: `data/wa-sessions/<user-id>/`)
+### 3.4 `billing` (inside each user: `users[].billing`)
+
+The current 30-day usage period. When `periodEnd` passes, the account falls back to Free with a fresh allowance, unless an autopay charge (Razorpay webhook) has already started a new paid period.
+
+| Field | Type | Required | Description | Example |
+| :--- | :--- | :---: | :--- | :--- |
+| `planId` | `"free"` \| `"basic"` \| `"pro"` | ✅ | Plan for the current period (limits in `src/data/plans.ts`). | `basic` |
+| `source` | `"prepaid"` \| `"subscription"` | – | How the paid plan was bought. Empty on Free. | `prepaid` |
+| `periodStart` / `periodEnd` | string (ISO 8601) | ✅ | Current 30-day period. | `2026-10-12T10:00:00.000Z` |
+| `used` | number | ✅ | Successful messages sent in this period. | `128` |
+| `subscription` | `{ id, planId, status }` | – | Razorpay autopay subscription (`sub_…`) and its status (`created`, `active`, `cancelled`, `halted`, …). | `{ "id": "sub_Nx…", "planId": "pro", "status": "active" }` |
+| `payments` | array | – | Processed payments, newest first (max 50): `{ id, planId, amount, kind, at }`. A payment id is never processed twice. | `[ { "id": "pay_Nx…", "amount": 499, … } ]` |
+
+The admin (owner) account is never limited.
+
+### 3.5 `wa_sessions` (folder: `data/wa-sessions/<user-id>/`)
 
 One folder per user who has opened Send Messages. Created and managed by the Baileys library; **do not edit these files**.
 
@@ -156,7 +174,7 @@ One folder per user who has opened Send Messages. Created and managed by the Bai
 - No folder, or no `creds.json` → the user has not linked WhatsApp yet.
 - Deleting a user's folder unlinks them; they will get a new QR code on the Send Messages page.
 
-### 3.5 `session_secret` (file: `data/session-secret`)
+### 3.6 `session_secret` (file: `data/session-secret`)
 
 | Content | Description |
 | :--- | :--- |
@@ -164,7 +182,7 @@ One folder per user who has opened Send Messages. Created and managed by the Bai
 
 Changing or deleting it logs **all** users out (their passwords and data are unaffected).
 
-### 3.6 Login sessions (not stored)
+### 3.7 Login sessions (not stored)
 
 Logins are stateless signed cookies (`wa_session`, HttpOnly, SameSite=Lax, valid 7 days). They contain only the user ID and expiry, so there is no sessions table.
 

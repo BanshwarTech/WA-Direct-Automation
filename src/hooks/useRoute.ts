@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 
-export type Route = 'home' | 'send' | 'ai' | 'scripts' | 'help' | 'login' | 'register';
+export type Route = 'home' | 'send' | 'ai' | 'scripts' | 'help' | 'pricing' | 'login' | 'register';
 
-const ROUTES: Route[] = ['home', 'send', 'ai', 'scripts', 'help', 'login', 'register'];
+const ROUTES: Route[] = ['home', 'send', 'ai', 'scripts', 'help', 'pricing', 'login', 'register'];
 
 // Pages that need an account
 export const PROTECTED_ROUTES: Route[] = ['send', 'ai'];

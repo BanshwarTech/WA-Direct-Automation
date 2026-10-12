@@ -4,6 +4,7 @@
 import crypto from 'crypto';
 import type { Express } from 'express';
 import { getUserMessages, requireAuth, requireJson, updateUser, SavedMessage } from './auth';
+import { planAllows } from './billing';
 
 const MAX_SAVED = 50;
 const MAX_AI_HISTORY = 20;
@@ -20,6 +21,10 @@ export function registerMessageRoutes(app: Express) {
 
   // Body: { text, source: 'ai' | 'manual', title?, pin? }. pin=false only applies to AI history entries.
   app.post('/api/messages', (req, res) => {
+    // Saved messages and the AI history are a Basic / Pro feature
+    if (!planAllows(req.user!, 'savedMessages')) {
+      return res.status(402).json({ error: 'Saving messages is available on the Basic and Pro plans.', upgrade: true });
+    }
     const text = String(req.body?.text ?? '').trim();
     const source = req.body?.source === 'ai' ? 'ai' : 'manual';
     const pin = source === 'manual' || req.body?.pin !== false;

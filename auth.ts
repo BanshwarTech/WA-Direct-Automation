@@ -26,6 +26,7 @@ interface StoredUser extends PublicUser {
   createdAt: string;
   scenarios?: Scenario[];
   savedMessages?: SavedMessage[];
+  billing?: Billing;
 }
 
 // A user-defined AI Composer scenario (name shown in the dropdown, instructions sent to the AI)
@@ -44,6 +45,22 @@ export interface SavedMessage {
   /** false = AI history entry (auto-trimmed); true/missing = saved by the user and kept */
   pinned?: boolean;
   createdAt: string;
+}
+
+// Message plan and usage (see billing.ts). Missing = Free plan, period starts on first use.
+export interface Billing {
+  planId: 'free' | 'basic' | 'pro';
+  /** How the current paid plan was bought */
+  source?: 'prepaid' | 'subscription';
+  /** Current 30-day usage period */
+  periodStart: string;
+  periodEnd: string;
+  /** Successful messages sent in the current period */
+  used: number;
+  /** Razorpay subscription (autopay), if one was started */
+  subscription?: { id: string; planId: 'basic' | 'pro'; status: string };
+  /** Processed Razorpay payments, newest first (also used to ignore duplicate webhooks) */
+  payments?: { id: string; planId: 'basic' | 'pro'; amount: number; kind: 'prepaid' | 'subscription'; at: string }[];
 }
 
 declare global {
@@ -107,6 +124,15 @@ export function updateUser<T>(userId: string, fn: (user: StoredUser) => T): T | 
   const result = fn(user);
   saveUsers(users);
   return result;
+}
+
+export function getUserBilling(userId: string): Billing | undefined {
+  return loadUsers().find((u) => u.id === userId)?.billing;
+}
+
+/** Finds the user whose billing matches (used by payment webhooks) */
+export function findUserIdByBilling(match: (billing: Billing) => boolean): string | undefined {
+  return loadUsers().find((u) => u.billing && match(u.billing))?.id;
 }
 
 export function getUserScenarios(userId: string): Scenario[] {

@@ -130,6 +130,38 @@ If you used the app before accounts existed, the first account you create automa
 
 ---
 
+## 💳 Plans & Razorpay Payments
+
+Every account gets a monthly message allowance. Plans are defined in [`src/data/plans.ts`](src/data/plans.ts):
+
+| Plan | Price | Messages / 30 days |
+| :--- | :--- | :--- |
+| Free | ₹0 | 50 |
+| Basic | ₹499 | 2,500 |
+| Pro | ₹1,499 | 10,000 |
+
+- Every **successful** send counts (single, bulk and API). Failed sends do not.
+- The **admin** (first / owner account) is unlimited.
+- Users pay on the **Pricing** page, either **once** (30 days) or with **autopay** (monthly Razorpay subscription).
+
+### Setup
+1. Create a [Razorpay](https://dashboard.razorpay.com) account and open **Account & Settings → API Keys**. Generate a key (start with **Test mode**).
+2. Add the keys to `.env` and restart the server:
+   ```env
+   RAZORPAY_KEY_ID="rzp_test_XXXXXXXXXXXXXX"
+   RAZORPAY_KEY_SECRET="your_key_secret"
+   RAZORPAY_WEBHOOK_SECRET="any-long-random-string"
+   ```
+3. In **Account & Settings → Webhooks**, add a webhook:
+   - URL: `https://<your-domain>/api/billing/webhook` (must be publicly reachable over HTTPS)
+   - Secret: the same value as `RAZORPAY_WEBHOOK_SECRET`
+   - Events: `payment.captured`, `subscription.activated`, `subscription.charged`, `subscription.cancelled`, `subscription.halted`, `subscription.completed`
+4. For autopay, make sure **Subscriptions** is enabled on your Razorpay account. The Razorpay plans (Basic / Pro, monthly) are created automatically the first time someone starts autopay.
+
+The webhook renews autopay plans every month and activates one-time payments if the buyer closes the browser before returning to the site. Payments are only activated after the Razorpay signature is verified on the server. Switch to `rzp_live_` keys when you are ready to accept real payments.
+
+---
+
 ## 🤖 How to Run the 24/7 AI WhatsApp Auto-Reply Bot
 
 > **Note:** `whatsapp_nvidia_ai_bot.js` is not included in the repository. Generate and download it from the **Scripts** page of the web app.

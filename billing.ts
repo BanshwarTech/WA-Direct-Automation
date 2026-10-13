@@ -13,15 +13,17 @@ import fs from 'fs';
 import path from 'path';
 import type { Express, Request, Response } from 'express';
 import { Billing, findUserIdByBilling, getUserBilling, PublicUser, requireAuth, requireJson, updateUser } from './auth';
+import { getSetting, plansEnabled } from './appSettings';
 import { ALL_FEATURES, PLAN_DAYS, PLANS, planById, PlanFeature, PlanFeatures, PlanId } from './src/data/plans';
 
 const DAY = 24 * 60 * 60 * 1000;
 const RZP_API = 'https://api.razorpay.com/v1';
 const PLAN_CACHE_FILE = path.join(path.resolve(process.env.DATA_DIR || './data'), 'razorpay-plans.json');
 
-const keyId = () => process.env.RAZORPAY_KEY_ID?.trim() || '';
-const keySecret = () => process.env.RAZORPAY_KEY_SECRET?.trim() || '';
-const webhookSecret = () => process.env.RAZORPAY_WEBHOOK_SECRET?.trim() || '';
+// Set on the admin Settings page (falls back to .env)
+const keyId = () => getSetting('RAZORPAY_KEY_ID');
+const keySecret = () => getSetting('RAZORPAY_KEY_SECRET');
+const webhookSecret = () => getSetting('RAZORPAY_WEBHOOK_SECRET');
 export const paymentsConfigured = () => Boolean(keyId() && keySecret());
 
 type PaidPlanId = Exclude<PlanId, 'free'>;
@@ -58,10 +60,12 @@ export interface Usage {
 export function getUsage(user: PublicUser): Usage {
   const b = current(getUserBilling(user.id));
   const plan = planById(b.planId);
-  const unlimited = user.role === 'owner';
+  // The admin is always unlimited; everyone else too while paid plans are switched off
+  const free = !plansEnabled();
+  const unlimited = user.role === 'owner' || free;
   return {
     planId: plan.id,
-    planName: unlimited ? 'Admin' : plan.name,
+    planName: user.role === 'owner' ? 'Admin' : free ? 'Free · everything included' : plan.name,
     source: b.source,
     limit: plan.messages,
     used: b.used,
@@ -78,6 +82,8 @@ export const planAllows = (user: PublicUser, feature: PlanFeature) => getUsage(u
 
 /** Counts one successful message against the user's current period */
 export function recordMessageSent(userId: string) {
+  // Nothing is counted while plans are off, so nobody starts the paid era already at their limit
+  if (!plansEnabled()) return;
   updateUser(userId, (user) => {
     const b = current(user.billing);
     user.billing = { ...b, used: b.used + 1 };
@@ -164,6 +170,13 @@ export function registerBillingRoutes(app: Express) {
 
   app.use('/api/billing', requireJson, requireAuth);
 
+  // The admin account is unlimited and never buys a plan
+  app.post(['/api/billing/order', '/api/billing/subscription'], (req, res, next) => {
+    if (!plansEnabled()) return res.status(400).json({ error: 'Plans are not available yet. Everything is free for now.' });
+    if (req.user!.role === 'owner') return res.status(400).json({ error: 'The admin account does not need a plan: messages are unlimited.' });
+    next();
+  });
+
   app.get('/api/billing', (req, res) => {
     const usage = getUsage(req.user!);
     const b = getUserBilling(req.user!.id);
@@ -172,6 +185,7 @@ export function registerBillingRoutes(app: Express) {
       usage: { ...usage, remaining: usage.unlimited ? null : usage.remaining },
       payments: (b?.payments ?? []).slice(0, 10),
       payments_enabled: paymentsConfigured(),
+      plans_enabled: plansEnabled(),
       key_id: keyId() || null,
       test_mode: keyId().startsWith('rzp_test_'),
     });

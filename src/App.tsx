@@ -9,13 +9,16 @@ import { LinkOnboarding } from './components/LinkOnboarding';
 import { NvidiaStudio } from './components/NvidiaStudio';
 import { HomePage } from './pages/HomePage';
 import { ScriptsPage } from './pages/ScriptsPage';
+import { SettingsPage } from './pages/SettingsPage';
+import { UsersPage } from './pages/UsersPage';
 import { HelpPage } from './pages/HelpPage';
 import { PricingPage } from './pages/PricingPage';
-import { LoginPage, RegisterPage } from './pages/AuthPages';
+import { ForgotPasswordPage, LoginPage, RegisterPage, ResetPasswordPage, VerifyEmailPage } from './pages/AuthPages';
 import { BackToTop } from './components/BackToTop';
 import { DialogHost } from './components/Dialog';
+import { ToastHost } from './components/Toast';
 import { AuthProvider, AuthState, useAuth } from './auth/AuthContext';
-import { ADMIN_ROUTES, navigate, PROTECTED_ROUTES, Route, useRoute } from './hooks/useRoute';
+import { ADMIN_ROUTES, AUTH_ROUTES, navigate, PROTECTED_ROUTES, Route, useRoute } from './hooks/useRoute';
 import { useWaStatus } from './hooks/useWaStatus';
 import { getScripts } from './data/scriptsData';
 import { DEFAULT_MESSAGE } from './data/messageTemplates';
@@ -29,13 +32,14 @@ export default function App({ initialRoute, initialAuth }: { initialRoute: Route
     <AuthProvider initial={initialAuth}>
       <AppShell initialRoute={initialRoute} />
       <DialogHost />
+      <ToastHost />
     </AuthProvider>
   );
 }
 
 function AppShell({ initialRoute }: { initialRoute: Route }) {
   const requestedRoute = useRoute(initialRoute);
-  const { user, registrationOpen } = useAuth();
+  const { user, registrationOpen, plansEnabled } = useAuth();
   // WhatsApp status is per account, so it is only polled while logged in
   const waStatus = useWaStatus(Boolean(user));
 
@@ -45,13 +49,16 @@ function AppShell({ initialRoute }: { initialRoute: Route }) {
   const needsAuth = (PROTECTED_ROUTES.includes(requestedRoute) || ADMIN_ROUTES.includes(requestedRoute)) && !user;
   // Admin-only pages: members see Send Messages instead
   const forbidden = Boolean(user) && !isAdmin && ADMIN_ROUTES.includes(requestedRoute);
-  const route: Route = needsAuth ? authRoute : forbidden ? 'send' : requestedRoute;
+  // Pricing stays hidden until paid plans are switched on (the admin can still preview it)
+  const pricingHidden = requestedRoute === 'pricing' && !plansEnabled && !isAdmin;
+  const route: Route = needsAuth ? authRoute : forbidden ? 'send' : pricingHidden ? 'home' : requestedRoute;
 
   useEffect(() => {
     if (needsAuth) navigate(authRoute, `?next=/${requestedRoute}`);
     else if (forbidden) navigate('send');
-    else if (user && (requestedRoute === 'login' || requestedRoute === 'register')) navigate('send');
-  }, [needsAuth, forbidden, authRoute, requestedRoute, user]);
+    else if (pricingHidden) navigate('home');
+    else if (user && AUTH_ROUTES.includes(requestedRoute)) navigate('send');
+  }, [needsAuth, forbidden, pricingHidden, authRoute, requestedRoute, user]);
 
   const [phone, setPhone] = useState('');
   const [message, setMessage] = useState(DEFAULT_MESSAGE);
@@ -86,6 +93,9 @@ function AppShell({ initialRoute }: { initialRoute: Route }) {
   // Log-in and sign-up are full-screen split layouts without the site header and footer
   if (route === 'login') return <LoginPage />;
   if (route === 'register') return <RegisterPage />;
+  if (route === 'forgot-password') return <ForgotPasswordPage />;
+  if (route === 'reset-password') return <ResetPasswordPage />;
+  if (route === 'verify-email') return <VerifyEmailPage />;
 
   return (
     <div className="min-h-screen bg-[#f5f8fa] text-slate-800 flex flex-col font-sans selection:bg-green-200 selection:text-navy-900">
@@ -135,6 +145,10 @@ function AppShell({ initialRoute }: { initialRoute: Route }) {
         {route === 'scripts' && (
           <ScriptsPage scripts={scripts} selectedScriptId={selectedScriptId} setSelectedScriptId={setSelectedScriptId} />
         )}
+
+        {route === 'settings' && <SettingsPage />}
+
+        {route === 'users' && <UsersPage />}
 
         {route === 'help' && <HelpPage />}
 

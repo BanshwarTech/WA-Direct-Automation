@@ -18,6 +18,8 @@ export interface BillingInfo {
   };
   payments: { id: string; planId: 'basic' | 'pro'; amount: number; kind: 'prepaid' | 'subscription'; at: string }[];
   payments_enabled: boolean;
+  /** Paid plans switched on by the admin (until then everyone is free and unlimited) */
+  plans_enabled: boolean;
   key_id: string | null;
   test_mode: boolean;
 }

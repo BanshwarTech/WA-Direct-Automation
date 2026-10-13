@@ -128,11 +128,36 @@ DATA_DIR="./data"
 
 If you used the app before accounts existed, the first account you create automatically takes over the WhatsApp session in `./gateway_auth`.
 
+### Admin Settings page (`/settings`)
+
+The admin (owner account) can set these on **Settings** instead of editing `.env`. Saved values live in `data/settings.json` and apply immediately, with no restart:
+
+| Section | Settings |
+| :--- | :--- |
+| AI Composer | NVIDIA API key |
+| Payments | Razorpay key id, key secret, webhook secret (the page shows the webhook URL to copy) |
+| Email (SMTP) | Host, port, username, password, from address, plus a **Send test email** button |
+| Site | Site URL (`APP_URL`), allow new sign-ups |
+
+A setting that was never saved on the page (or was reset) falls back to the same variable in `.env`. Secrets are shown as dots until you click the eye button, and only to the admin's browser session (never through an API key). `PORT`, `HOST`, `DATA_DIR` and `SESSION_SECRET` stay in `.env` because they are read at startup.
+
+### Email verification at sign-up
+
+Every new account must open the verification link emailed at sign-up before it can log in. The first account (the admin) is active immediately. Because of this, new sign-ups are blocked until SMTP is set up on the Settings page.
+
+### Users & payments page (`/users`)
+
+Admin only: every account with its plan, message usage, WhatsApp link state and email verification, plus total revenue, paying users and the full payment list. The admin account itself has no plan (unlimited messages).
+
+### Forgot password
+
+Once SMTP is set up, **Forgot password?** on the log-in page emails a one-time reset link (valid for 60 minutes). Setting a new password logs out every other session of that account. Set the **Site URL** in production so reset links point at your public domain.
+
 ---
 
 ## 💳 Plans & Razorpay Payments
 
-Every account gets a monthly message allowance. Plans are defined in [`src/data/plans.ts`](src/data/plans.ts):
+**Paid plans are off by default:** until the admin turns on **Paid plans** (Settings → Plans & payments), every user gets unlimited messages and all features, the Pricing page is hidden and nothing is counted. Once switched on, every account gets a monthly message allowance. Plans are defined in [`src/data/plans.ts`](src/data/plans.ts):
 
 | Plan | Price | Messages / 30 days |
 | :--- | :--- | :--- |
@@ -146,7 +171,7 @@ Every account gets a monthly message allowance. Plans are defined in [`src/data/
 
 ### Setup
 1. Create a [Razorpay](https://dashboard.razorpay.com) account and open **Account & Settings → API Keys**. Generate a key (start with **Test mode**).
-2. Add the keys to `.env` and restart the server:
+2. Add the keys on the admin **Settings** page (or in `.env` and restart the server):
    ```env
    RAZORPAY_KEY_ID="rzp_test_XXXXXXXXXXXXXX"
    RAZORPAY_KEY_SECRET="your_key_secret"

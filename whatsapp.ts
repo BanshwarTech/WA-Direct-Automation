@@ -100,6 +100,9 @@ export async function adoptLegacySession(userId: string) {
   await fs.rename(LEGACY_DIR, authDir(userId)).catch(() => {});
 }
 
+/** Whether the user's WhatsApp is linked right now, without starting a connection (for the admin Users page) */
+export const isWhatsAppLinked = (userId: string) => Boolean(sessions.get(userId)?.ready);
+
 export function getWhatsAppStatus(userId: string) {
   const s = ensureSession(userId);
   s.lastSeen = Date.now();

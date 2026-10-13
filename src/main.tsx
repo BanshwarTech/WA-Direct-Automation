@@ -17,7 +17,7 @@ hydrateRoot(
   <StrictMode>
     <App
       initialRoute={routeFromPath(window.location.pathname) ?? 'home'}
-      initialAuth={window.__AUTH__ ?? { user: null, registrationOpen: true }}
+      initialAuth={window.__AUTH__ ?? { user: null, registrationOpen: true, plansEnabled: false }}
     />
   </StrictMode>
 );

@@ -1,14 +1,30 @@
 import { useEffect, useState } from 'react';
 
-export type Route = 'home' | 'send' | 'ai' | 'scripts' | 'help' | 'pricing' | 'login' | 'register';
+export type Route =
+  | 'home'
+  | 'send'
+  | 'ai'
+  | 'scripts'
+  | 'settings'
+  | 'help'
+  | 'pricing'
+  | 'login'
+  | 'register'
+  | 'forgot-password'
+  | 'reset-password'
+  | 'verify-email'
+  | 'users';
 
-const ROUTES: Route[] = ['home', 'send', 'ai', 'scripts', 'help', 'pricing', 'login', 'register'];
+const ROUTES: Route[] = ['home', 'send', 'ai', 'scripts', 'settings', 'help', 'pricing', 'login', 'register', 'forgot-password', 'reset-password', 'verify-email', 'users'];
+
+// Log-in, sign-up and password reset: full-screen pages for logged-out visitors only
+export const AUTH_ROUTES: Route[] = ['login', 'register', 'forgot-password', 'reset-password', 'verify-email'];
 
 // Pages that need an account
 export const PROTECTED_ROUTES: Route[] = ['send', 'ai'];
 
 // Pages only the admin (owner account) can open; hidden from everyone else
-export const ADMIN_ROUTES: Route[] = ['scripts'];
+export const ADMIN_ROUTES: Route[] = ['scripts', 'settings', 'users'];
 
 export const pathFor = (route: Route) => (route === 'home' ? '/' : `/${route}`);
 

@@ -27,7 +27,7 @@ const COLUMNS = [
 ];
 
 export const Footer: React.FC<{ waStatus: WaStatus | null }> = ({ waStatus }) => {
-  const { user } = useAuth();
+  const { user, plansEnabled } = useAuth();
   return (
   <footer className="relative overflow-hidden bg-navy-950 text-slate-300">
     {/* glowing top edge + faint grid */}
@@ -74,7 +74,7 @@ export const Footer: React.FC<{ waStatus: WaStatus | null }> = ({ waStatus }) =>
             <div key={col.title}>
               <h4 className="text-xs font-semibold uppercase tracking-[0.16em] text-wa">{col.title}</h4>
               <ul className="mt-4 space-y-3">
-                {col.links.map((link) => (
+                {col.links.filter((link) => link.href !== '/pricing' || plansEnabled).map((link) => (
                   <li key={link.label}>
                     <a
                       href={link.href}

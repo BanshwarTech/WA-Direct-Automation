@@ -13,6 +13,7 @@ import { WaStatus } from '../hooks/useWaStatus';
 import { VariableFields } from './VariableFields';
 import { confirmDialog } from './Dialog';
 import { Notice } from './Notice';
+import { toast } from './Toast';
 import { extractVariables, fillVariables, variableLabel } from '../utils/variables';
 import { downloadSampleSheet, importRecipients } from '../utils/excel';
 
@@ -50,15 +51,12 @@ export const DirectSender: React.FC<Props> = ({ phone, setPhone, message, setMes
   const [bulkInput, setBulkInput] = useState('');
   const [queue, setQueue] = useState<Recipient[]>([]);
   const [sending, setSending] = useState(false);
-  const [sendResult, setSendResult] = useState<{ ok: boolean; text: string; upgrade?: boolean } | null>(null);
-  const [bulkLimitHit, setBulkLimitHit] = useState(false);
   const [bulkRunning, setBulkRunning] = useState(false);
   const stopBulk = useRef(false);
   // Values for {variables}, shared by both modes (keyed by variable name, so they survive template switches)
   const [varValues, setVarValues] = useState<Record<string, string>>({});
   const setVar = (key: string, value: string) => setVarValues((prev) => ({ ...prev, [key]: value }));
   const [sheetColumns, setSheetColumns] = useState<string[]>([]);
-  const [importInfo, setImportInfo] = useState<{ ok: boolean; text: string } | null>(null);
   const [importing, setImporting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -114,26 +112,22 @@ export const DirectSender: React.FC<Props> = ({ phone, setPhone, message, setMes
     });
     setQueue(parsed);
     setSheetColumns(pasteVars);
-    setImportInfo(null);
   };
 
   const handleImportFile = async (file: File) => {
     setImporting(true);
-    setImportInfo(null);
     try {
       const { recipients, columns, skipped } = await importRecipients(file, dialCode(DEFAULT_COUNTRY));
       if (recipients.length === 0) throw new Error('No valid phone numbers found in the file.');
       setQueue(recipients);
       setSheetColumns(columns);
-      setImportInfo({
-        ok: true,
-        text:
-          `Loaded ${recipients.length} recipients from ${file.name}` +
+      toast.success(
+        `Loaded ${recipients.length} recipients from ${file.name}` +
           (columns.length ? ` · columns: ${columns.join(', ')}` : '') +
-          (skipped ? ` · ${skipped} rows skipped (invalid number)` : ''),
-      });
+          (skipped ? ` · ${skipped} rows skipped (invalid number)` : '')
+      );
     } catch (error: any) {
-      setImportInfo({ ok: false, text: error.message || 'Could not read the file.' });
+      toast.error(error.message || 'Could not read the file.');
     } finally {
       setImporting(false);
       if (fileRef.current) fileRef.current.value = '';
@@ -142,21 +136,31 @@ export const DirectSender: React.FC<Props> = ({ phone, setPhone, message, setMes
 
   const handleDirectSend = async () => {
     if (!cleanNumber || !message.trim()) {
-      setSendResult({ ok: false, text: 'Please enter both a phone number and a message.' });
+      toast.error('Please enter both a phone number and a message.');
       return;
     }
     if (missingVars.length) {
-      setSendResult({ ok: false, text: `Fill in the message variables first: ${missingVars.map(variableLabel).join(', ')}.` });
+      toast.error(`Fill in the message variables first: ${missingVars.map(variableLabel).join(', ')}.`);
       return;
     }
     setSending(true);
-    setSendResult(null);
     try {
       await sendDirect(fullPhone, filledMessage);
-      setSendResult({ ok: true, text: `Message sent to +${fullPhone} ✓` });
+      toast.success(`Message sent to +${fullPhone}`);
       billing.refresh();
     } catch (error: any) {
-      setSendResult({ ok: false, text: error.message, upgrade: error.limitReached });
+      toast.error(
+        error.limitReached ? (
+          <>
+            {error.message}{' '}
+            <a href="/pricing" className="font-semibold text-green-700 underline underline-offset-2">
+              See plans →
+            </a>
+          </>
+        ) : (
+          error.message
+        )
+      );
     } finally {
       setSending(false);
     }
@@ -186,7 +190,15 @@ export const DirectSender: React.FC<Props> = ({ phone, setPhone, message, setMes
     } catch (error: any) {
       if (error.limitReached) {
         updateQueueItem(item.id, { status: 'pending', error: undefined });
-        setBulkLimitHit(true);
+        toast.warning(
+          <>
+            Bulk sending stopped: your plan&apos;s messages are used up. The remaining recipients are still in the queue.{' '}
+            <a href="/pricing" className="font-semibold text-green-700 underline underline-offset-2">
+              Upgrade to continue →
+            </a>
+          </>,
+          { duration: 12000 }
+        );
         return 'limit';
       }
       updateQueueItem(item.id, { status: 'failed', error: error.message });
@@ -196,7 +208,6 @@ export const DirectSender: React.FC<Props> = ({ phone, setPhone, message, setMes
 
   const handleSendAll = async () => {
     stopBulk.current = false;
-    setBulkLimitHit(false);
     setBulkRunning(true);
     const pending = queue.filter((q) => q.status === 'pending' || q.status === 'failed');
     for (let i = 0; i < pending.length; i++) {
@@ -288,14 +299,6 @@ export const DirectSender: React.FC<Props> = ({ phone, setPhone, message, setMes
       )}
 
       <UsageStrip billing={billing} />
-      {bulkLimitHit && activeMode === 'bulk' && (
-        <Notice tone="warning" onDismiss={() => setBulkLimitHit(false)} className="mt-5">
-          Bulk sending stopped: your plan&apos;s messages are used up. The remaining recipients are still in the queue.{' '}
-          <a href="/pricing" className="font-semibold underline underline-offset-2">
-            Upgrade to continue →
-          </a>
-        </Notice>
-      )}
 
       {activeMode === 'single' ? (
         <div className="mt-6 grid gap-6 lg:grid-cols-12">
@@ -373,20 +376,6 @@ export const DirectSender: React.FC<Props> = ({ phone, setPhone, message, setMes
                 {copiedLink ? 'Link Copied!' : 'Copy Direct Link'}
               </button>
             </div>
-
-            {sendResult && (
-              <Notice tone={sendResult.ok ? 'success' : 'error'} onDismiss={() => setSendResult(null)}>
-                {sendResult.text}
-                {sendResult.upgrade && (
-                  <>
-                    {' '}
-                    <a href="/pricing" className="font-semibold underline underline-offset-2">
-                      See plans →
-                    </a>
-                  </>
-                )}
-              </Notice>
-            )}
           </div>
 
           {/* Live Preview Section */}
@@ -474,11 +463,6 @@ export const DirectSender: React.FC<Props> = ({ phone, setPhone, message, setMes
                       <Download className="h-3 w-3" /> Download sample Excel
                     </button>
                   </div>
-                  {importInfo && (
-                    <Notice tone={importInfo.ok ? 'success' : 'error'} onDismiss={() => setImportInfo(null)} compact className="mt-3">
-                      {importInfo.text}
-                    </Notice>
-                  )}
                 </div>
               )}
 

@@ -7,6 +7,8 @@ import { adoptLegacySession, getWhatsAppStatus, logoutWhatsApp, restoreWhatsAppS
 import { registerScenarioRoutes } from './scenarios';
 import { registerMessageRoutes } from './messages';
 import { getUsage, recordMessageSent, registerBillingRoutes } from './billing';
+import { getSetting, plansEnabled, publicOrigin, registerSettingsRoutes } from './appSettings';
+import { registerAdminUserRoutes } from './adminUsers';
 import { attachUser, registerAuthRoutes, registrationOpen, requireAuth, requireJson, PublicUser } from './auth';
 
 dotenv.config();
@@ -40,6 +42,8 @@ app.use(['/api/wa', '/api/nvidia'], requireJson, requireAuth);
 registerScenarioRoutes(app);
 registerMessageRoutes(app);
 registerBillingRoutes(app);
+registerSettingsRoutes(app);
+registerAdminUserRoutes(app); // after registerSettingsRoutes, which adds the admin-only guard for /api/admin
 
 const NVIDIA_API_BASE = 'https://integrate.api.nvidia.com/v1';
 
@@ -80,7 +84,7 @@ const cleanReply = (text: string) => text.replace(/<think>[\s\S]*?<\/think>/gi, 
 
 // Status endpoint
 app.get('/api/nvidia/status', (_req: Request, res: Response) => {
-  const hasKey = Boolean(process.env.NVIDIA_API_KEY && process.env.NVIDIA_API_KEY.trim().length > 5);
+  const hasKey = getSetting('NVIDIA_API_KEY').length > 5;
   res.json({
     configured: hasKey,
     models: POPULAR_MODELS
@@ -96,7 +100,7 @@ app.get('/api/nvidia/models', (_req: Request, res: Response) => {
 
 // Chat completion endpoint via NVIDIA NIM
 app.post('/api/nvidia/chat', async (req: Request, res: Response) => {
-  const apiKey = process.env.NVIDIA_API_KEY?.trim();
+  const apiKey = getSetting('NVIDIA_API_KEY');
 
   const {
     messages,
@@ -108,7 +112,7 @@ app.post('/api/nvidia/chat', async (req: Request, res: Response) => {
 
   if (!apiKey) {
     return res.status(400).json({
-      error: 'NVIDIA_API_KEY is not configured on the server. Please set NVIDIA_API_KEY in your .env or environment settings.',
+      error: 'The NVIDIA API key is not set. The admin can add it on the Settings page.',
       isMissingKey: true
     });
   }
@@ -169,13 +173,13 @@ app.post('/api/nvidia/chat', async (req: Request, res: Response) => {
 
 // WhatsApp Message Generator endpoint (Specialized for composing WhatsApp messages)
 app.post('/api/nvidia/compose', async (req: Request, res: Response) => {
-  const apiKey = process.env.NVIDIA_API_KEY?.trim();
+  const apiKey = getSetting('NVIDIA_API_KEY');
   const { intent, recipientName, context, language = 'Hinglish', tone = 'professional & friendly', model: requestedModel } = req.body;
   const model = MODEL_IDS.has(requestedModel) ? requestedModel : DEFAULT_MODEL;
 
   if (!apiKey) {
     return res.status(400).json({
-      error: 'NVIDIA_API_KEY is not configured on the server. Please set NVIDIA_API_KEY in your .env.',
+      error: 'The NVIDIA API key is not set. The admin can add it on the Settings page.',
       isMissingKey: true
     });
   }
@@ -234,7 +238,7 @@ Additional Context/Details: ${context || 'None'}`;
 });
 
 // SEO: sitemap.xml and robots.txt. Absolute URLs use APP_URL when it is a real URL, otherwise the request host.
-// Only public pages: /send and /ai require an account, /scripts is admin-only
+// Only public pages: /send and /ai require an account, /scripts and /settings are admin-only
 const SITE_PAGES = [
   { path: '/', priority: '1.0' },
   { path: '/pricing', priority: '0.8' },
@@ -243,16 +247,13 @@ const SITE_PAGES = [
   { path: '/login', priority: '0.4' },
 ];
 
-function siteOrigin(req: Request): string {
-  const configured = process.env.APP_URL?.trim();
-  if (configured && /^https?:\/\/[^\s]+$/i.test(configured)) return configured.replace(/\/+$/, '');
-  return `${req.protocol}://${req.get('host')}`;
-}
+const siteOrigin = publicOrigin;
 
 app.get('/sitemap.xml', (req: Request, res: Response) => {
   const origin = siteOrigin(req);
   const lastmod = new Date().toISOString().slice(0, 10);
-  const urls = SITE_PAGES.map(
+  // The Pricing page is only public once paid plans are switched on
+  const urls = SITE_PAGES.filter((p) => p.path !== '/pricing' || plansEnabled()).map(
     (p) => `  <url>\n    <loc>${origin}${p.path}</loc>\n    <lastmod>${lastmod}</lastmod>\n    <priority>${p.priority}</priority>\n  </url>`
   ).join('\n');
   res
@@ -261,7 +262,7 @@ app.get('/sitemap.xml', (req: Request, res: Response) => {
 });
 
 app.get('/robots.txt', (req: Request, res: Response) => {
-  res.type('text/plain').send(`User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /scripts\n\nSitemap: ${siteOrigin(req)}/sitemap.xml\n`);
+  res.type('text/plain').send(`User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /scripts\nDisallow: /settings\nDisallow: /reset-password\nDisallow: /verify-email\nDisallow: /users\n\nSitemap: ${siteOrigin(req)}/sitemap.xml\n`);
 });
 
 // WhatsApp direct send (Baileys, no WhatsApp Web)
@@ -303,7 +304,7 @@ app.post('/api/wa/logout', async (req: Request, res: Response) => {
 type RenderFn = (
   url: string,
   origin: string,
-  auth: { user: PublicUser | null; registrationOpen: boolean }
+  auth: { user: PublicUser | null; registrationOpen: boolean; plansEnabled: boolean }
 ) => { html: string; head: string; status: number };
 
 async function startServer() {
@@ -314,6 +315,25 @@ async function startServer() {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'custom',
+    });
+    // Vite serves any file in the project folder, so keep accounts, secrets and WhatsApp sessions out of reach
+    const privateDirs = [path.resolve('./data'), path.resolve('./gateway_auth'), path.resolve(process.env.DATA_DIR || './data'), path.resolve(process.env.WA_LEGACY_DIR || './gateway_auth')];
+    app.use((req, res, next) => {
+      let urlPath: string;
+      try {
+        urlPath = decodeURIComponent(req.path);
+      } catch {
+        return res.status(400).end();
+      }
+      const file = urlPath.startsWith('/@fs/')
+        ? path.resolve(urlPath.slice(4).replace(/^\/([A-Za-z]:)/, '$1'))
+        : path.resolve(__dirname, `.${urlPath}`);
+      const inside = (dir: string) => {
+        const rel = path.relative(dir, file);
+        return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
+      };
+      if (privateDirs.some(inside) || /^\.env/i.test(path.basename(file))) return res.status(404).end();
+      next();
     });
     app.use(vite.middlewares);
     getPage = async (url) => {
@@ -361,8 +381,8 @@ async function startServer() {
 
 const PROTECTED_PATHS = ['/send', '/ai'];
 // Admin-only pages: members are sent to Send Messages, logged-out visitors to log-in
-const ADMIN_PATHS = ['/scripts'];
-const AUTH_PATHS = ['/login', '/register'];
+const ADMIN_PATHS = ['/scripts', '/settings', '/users'];
+const AUTH_PATHS = ['/login', '/register', '/forgot-password', '/reset-password', '/verify-email'];
 
 // Only same-site relative paths are accepted as a post-login destination (no open redirects)
 function safeNext(value: unknown): string {
@@ -379,12 +399,17 @@ async function sendPage(req: Request, res: Response, page: { template: string; r
     const target = registrationOpen() ? '/register' : '/login';
     return res.redirect(302, `${target}?next=${encodeURIComponent(req.originalUrl)}`);
   }
+  // Pricing is hidden until paid plans are switched on (the admin can still preview it)
+  if (req.path === '/pricing' && !plansEnabled() && req.user?.role !== 'owner') {
+    return res.redirect(302, '/');
+  }
   if (AUTH_PATHS.includes(req.path) && req.user) {
     return res.redirect(302, safeNext(req.query.next));
   }
   const { html, head, status } = page.render(req.originalUrl, siteOrigin(req), {
     user: req.user ?? null,
     registrationOpen: registrationOpen(),
+    plansEnabled: plansEnabled(),
   });
   const body = page.template.replace('<!--app-head-->', head).replace('<!--app-html-->', html);
   res.status(status).type('html').send(body);

@@ -1,7 +1,7 @@
 import { StrictMode } from 'react';
 import { renderToString } from 'react-dom/server';
 import App from './App';
-import { routeFromPath, pathFor } from './hooks/useRoute';
+import { AUTH_ROUTES, routeFromPath, pathFor } from './hooks/useRoute';
 import { PAGE_META } from './seo';
 import type { AuthState } from './auth/AuthContext';
 
@@ -30,7 +30,7 @@ export function render(url: string, origin: string, auth: AuthState) {
     `<meta property="og:type" content="website" />`,
     `<meta name="twitter:card" content="summary_large_image" />`,
     matched ? '' : '<meta name="robots" content="noindex" />',
-    route === 'login' || route === 'register' ? '<meta name="robots" content="noindex, follow" />' : '',
+    AUTH_ROUTES.includes(route) ? '<meta name="robots" content="noindex, follow" />' : '',
     // Auth state for hydration; "<" is escaped so user-provided names cannot close the script tag
     `<script>window.__AUTH__=${JSON.stringify(auth).replace(/</g, '\\u003c')}</script>`,
   ]

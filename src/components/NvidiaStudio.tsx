@@ -217,7 +217,7 @@ export const NvidiaStudio: React.FC<Props> = ({ onUseGeneratedMessage, onMessage
       if (!response.ok) {
         if (data.isMissingKey) {
           setErrorMessage(
-            'NVIDIA_API_KEY is not configured. A demo response is shown below; add NVIDIA_API_KEY="nvapi-..." to .env to enable live generation.'
+            'The NVIDIA API key is not set. A demo response is shown below; the admin can add the key on the Settings page to enable live generation.'
           );
           // High-quality simulated fallback
           setGeneratedOutput(getFallbackMessage(promptTopic, recipientName, language));
@@ -325,11 +325,11 @@ export const NvidiaStudio: React.FC<Props> = ({ onUseGeneratedMessage, onMessage
           <span className="text-slate-600">
             {serverStatus?.configured ? (
               <span className="text-green-600 font-semibold">
-                ✓ NVIDIA_API_KEY is configured on the server (live NIM inference active)
+                ✓ NVIDIA API key is configured (live NIM inference active)
               </span>
             ) : (
               <span>
-                NVIDIA API Key: set <code className="text-green-600">NVIDIA_API_KEY="nvapi-..."</code> in <code className="text-amber-600 bg-white px-1.5 py-0.5 rounded">.env</code>. (Get a free key at <a href="https://build.nvidia.com" target="_blank" rel="noreferrer" className="text-green-600 underline font-medium">build.nvidia.com</a>.)
+                NVIDIA API key not set: the admin can add it on the <a href="/settings" className="text-green-600 underline font-medium">Settings</a> page. (Get a free key at <a href="https://build.nvidia.com" target="_blank" rel="noreferrer" className="text-green-600 underline font-medium">build.nvidia.com</a>.)
               </span>
             )}
           </span>

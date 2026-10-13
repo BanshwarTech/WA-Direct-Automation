@@ -80,7 +80,7 @@ const TROUBLESHOOTING: { problem: string; fix: string; icon: React.ElementType; 
     icon: Wrench,
     audience: 'admin',
     problem: 'The AI Composer shows an NVIDIA API error',
-    fix: 'Check that NVIDIA_API_KEY in .env is valid, then restart the server. Errors mentioning "end of life" mean the model was retired; choose another model from the list.',
+    fix: 'Check that the NVIDIA API key on the admin Settings page is valid. Errors mentioning "end of life" mean the model was retired; choose another model from the list.',
   },
 ];
 

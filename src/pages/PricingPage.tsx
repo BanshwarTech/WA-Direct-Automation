@@ -3,6 +3,7 @@ import { Check, CreditCard, Crown, HelpCircle, Loader2, Receipt, RefreshCw, Repe
 import { PageShell, Highlight } from '../components/PageShell';
 import { Eyebrow } from '../components/Eyebrow';
 import { Notice } from '../components/Notice';
+import { toast } from '../components/Toast';
 import { FaqAccordion } from '../components/HomeFaq';
 import { confirmDialog } from '../components/Dialog';
 import { useAuth } from '../auth/AuthContext';
@@ -39,7 +40,6 @@ export const PricingPage: React.FC = () => {
   const { info, buy, cancelAutopay } = useBilling(Boolean(user));
   const [mode, setMode] = useState<Mode>('once');
   const [busy, setBusy] = useState<string | null>(null);
-  const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
 
   const usage = info?.usage;
   const sub = usage?.subscription;
@@ -50,7 +50,6 @@ export const PricingPage: React.FC = () => {
     if (!user) return;
     if (plan.id === 'free') return;
     setBusy(plan.id);
-    setResult(null);
     try {
       await buy(
         plan.id,
@@ -58,9 +57,9 @@ export const PricingPage: React.FC = () => {
         { name: user.name, email: user.email, contact: user.phone ? `+${user.phone}` : '' },
         `${plan.name} plan · ${plan.messages.toLocaleString('en-IN')} messages${mode === 'autopay' ? ' · monthly autopay' : ` · ${PLAN_DAYS} days`}`
       );
-      setResult({ ok: true, text: `Payment successful. Your ${plan.name} plan is active with ${plan.messages.toLocaleString('en-IN')} messages.` });
+      toast.success(`Payment successful. Your ${plan.name} plan is active with ${plan.messages.toLocaleString('en-IN')} messages.`);
     } catch (e: any) {
-      if (e.message !== 'Payment cancelled.') setResult({ ok: false, text: e.message });
+      if (e.message !== 'Payment cancelled.') toast.error(e.message);
     } finally {
       setBusy(null);
     }
@@ -75,12 +74,11 @@ export const PricingPage: React.FC = () => {
     });
     if (!ok) return;
     setBusy('cancel');
-    setResult(null);
     try {
       await cancelAutopay();
-      setResult({ ok: true, text: 'Autopay is off. You will not be charged again.' });
+      toast.success('Autopay is off. You will not be charged again.');
     } catch (e: any) {
-      setResult({ ok: false, text: e.message });
+      toast.error(e.message);
     } finally {
       setBusy(null);
     }
@@ -99,6 +97,13 @@ export const PricingPage: React.FC = () => {
         <a href={href} className={style}>
           {plan.id === 'free' ? 'Create free account' : `Get ${plan.name}`}
         </a>
+      );
+    }
+    if (user.role === 'owner') {
+      return (
+        <button type="button" disabled className={secondary}>
+          Not needed for admin
+        </button>
       );
     }
     if (plan.id === 'free') {
@@ -148,9 +153,9 @@ export const PricingPage: React.FC = () => {
                 {usage.unlimited ? <Crown className="h-6 w-6" /> : <Sparkles className="h-6 w-6" />}
               </span>
               <div>
-                <Eyebrow icon={<Receipt className="h-3.5 w-3.5" />}>Your plan</Eyebrow>
+                <Eyebrow icon={<Receipt className="h-3.5 w-3.5" />}>{usage.unlimited ? 'Admin account' : 'Your plan'}</Eyebrow>
                 <h2 className="mt-1 text-2xl font-black text-navy-900">
-                  {usage.planName}
+                  {usage.unlimited ? 'No plan needed' : usage.planName}
                   {usage.source && (
                     <span className="ml-2 align-middle rounded-full bg-green-50 px-2.5 py-0.5 text-xs font-semibold text-green-700 ring-1 ring-green-200">
                       {usage.source === 'subscription' ? 'Autopay' : 'Paid once'}
@@ -159,7 +164,7 @@ export const PricingPage: React.FC = () => {
                 </h2>
                 <p className="text-sm text-slate-500">
                   {usage.unlimited
-                    ? 'Admin account: unlimited messages.'
+                    ? 'Unlimited messages and every feature. Plans below are what your users can buy.'
                     : `${usage.source === 'subscription' && autopayOn ? 'Renews' : usage.planId === 'free' ? 'Resets' : 'Ends'} on ${fmtDate(usage.periodEnd)}`}
                 </p>
               </div>
@@ -208,16 +213,20 @@ export const PricingPage: React.FC = () => {
         </section>
       )}
 
-      {result && (
-        <Notice tone={result.ok ? 'success' : 'error'} onDismiss={() => setResult(null)}>
-          {result.text}
+      {user?.role === 'owner' && info && !info.plans_enabled && (
+        <Notice tone="warning">
+          Paid plans are off, so users can&apos;t see this page and everything is free for them. Turn on <strong>Paid plans</strong> on the{' '}
+          <a href="/settings" className="font-semibold underline underline-offset-2">
+            Settings
+          </a>{' '}
+          page when you are ready to charge.
         </Notice>
       )}
 
-      {user && info && !info.payments_enabled && (
+      {user && info && info.plans_enabled && !info.payments_enabled && (
         <Notice tone="info">
           {user.role === 'owner'
-            ? 'Online payments are off. Add RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET to .env and restart the server to accept payments.'
+            ? 'Online payments are off. Add the Razorpay keys on the Settings page to accept payments.'
             : 'Online payments are being set up. Please check back soon.'}
         </Notice>
       )}

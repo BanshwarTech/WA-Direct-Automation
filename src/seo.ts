@@ -22,6 +22,10 @@ export const PAGE_META: Record<Route, { title: string; description: string }> = 
     description:
       'Download ready-made WhatsApp automation scripts: an AI auto-reply bot, Android ADB, Python, Termux, and cURL, with no Meta account.',
   },
+  settings: {
+    title: 'Settings | WA Direct Automation',
+    description: 'Admin settings: AI and payment keys, site address and sign-up.',
+  },
   login: {
     title: 'Log in | WA Direct Automation',
     description: 'Log in to WA Direct Automation to send WhatsApp messages from your own linked number.',
@@ -30,6 +34,22 @@ export const PAGE_META: Record<Route, { title: string; description: string }> = 
     title: 'Create your free account | WA Direct Automation',
     description:
       'Create a free WA Direct Automation account, link your own WhatsApp with a QR code, and start sending messages in about a minute.',
+  },
+  'forgot-password': {
+    title: 'Forgot password | WA Direct Automation',
+    description: 'Get a link by email to reset your WA Direct Automation password.',
+  },
+  'reset-password': {
+    title: 'Choose a new password | WA Direct Automation',
+    description: 'Set a new password for your WA Direct Automation account.',
+  },
+  'verify-email': {
+    title: 'Verify your email | WA Direct Automation',
+    description: 'Confirm your email address to activate your WA Direct Automation account.',
+  },
+  users: {
+    title: 'Users & payments | WA Direct Automation',
+    description: 'Admin overview of accounts, plans, usage and payments.',
   },
   pricing: {
     title: 'Pricing | WA Direct Automation',

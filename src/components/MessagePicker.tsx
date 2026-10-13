@@ -3,7 +3,7 @@ import { Bookmark, BookmarkCheck, History, Loader2, Lock, Sparkles } from 'lucid
 import { navigate } from '../hooks/useRoute';
 import { Select, SelectOption } from './Select';
 import { confirmDialog, promptDialog } from './Dialog';
-import { Notice } from './Notice';
+import { toast } from './Toast';
 import { MESSAGE_TEMPLATES } from '../data/messageTemplates';
 import { isPinned, SavedMessage, useSavedMessages } from '../hooks/useSavedMessages';
 
@@ -23,7 +23,6 @@ const shortDate = (iso: string) =>
 // (an AI history entry is promoted so it is no longer auto-trimmed).
 export const MessagePicker: React.FC<Props> = ({ message, setMessage, library, canSave = true }) => {
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
 
   const saved = library.messages.filter(isPinned);
   const history = library.messages.filter((m) => !isPinned(m));
@@ -95,12 +94,11 @@ export const MessagePicker: React.FC<Props> = ({ message, setMessage, library, c
     });
     if (title === null) return;
     setSaving(true);
-    setError('');
     try {
       const fromHistory = history.find((m) => m.text === message.trim());
       await library.save(message, fromHistory ? 'ai' : 'manual', { title, pin: true });
     } catch (e: any) {
-      setError(e.message);
+      toast.error(e.message);
     } finally {
       setSaving(false);
     }
@@ -131,11 +129,6 @@ export const MessagePicker: React.FC<Props> = ({ message, setMessage, library, c
           {canSave && isSaved ? 'Saved' : 'Save'}
         </button>
       </div>
-      {error && (
-        <Notice tone="error" onDismiss={() => setError('')}>
-          {error}
-        </Notice>
-      )}
     </div>
   );
 };

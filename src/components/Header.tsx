@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowRight, ChevronDown, CreditCard, FileCode, KeyRound, LifeBuoy, LogOut, Menu, Send, Sparkles, X } from 'lucide-react';
+import { ArrowRight, ChevronDown, CreditCard, FileCode, KeyRound, LifeBuoy, LogOut, Menu, Send, Settings, Sparkles, Users, X } from 'lucide-react';
 import { ADMIN_ROUTES, navigate, Route } from '../hooks/useRoute';
 import { AuthUser, useAuth } from '../auth/AuthContext';
 import { WaStatus } from '../hooks/useWaStatus';
@@ -10,6 +10,8 @@ export const NAV_ITEMS: { route: Route; label: string; href: string; icon: React
   { route: 'send', label: 'Send Messages', href: '/send', icon: Send, hint: 'Single & bulk' },
   { route: 'ai', label: 'AI Composer', href: '/ai', icon: Sparkles, hint: 'Write with AI' },
   { route: 'scripts', label: 'Scripts', href: '/scripts', icon: FileCode, hint: 'Bots & API' },
+  { route: 'users', label: 'Users', href: '/users', icon: Users, hint: 'Accounts & payments' },
+  { route: 'settings', label: 'Settings', href: '/settings', icon: Settings, hint: 'Keys & sign-up' },
   { route: 'pricing', label: 'Pricing', href: '/pricing', icon: CreditCard, hint: 'Plans & billing' },
   { route: 'help', label: 'Help', href: '/help', icon: LifeBuoy, hint: 'Guides & FAQ' },
 ];
@@ -67,6 +69,7 @@ const Avatar: React.FC<{ user: AuthUser; size?: string; waStatus?: WaStatus | nu
 
 // Account trigger + dropdown for logged-in users (shows who is signed in and their WhatsApp link state)
 const UserMenu: React.FC<{ user: AuthUser; waStatus: WaStatus | null; onLogout: () => void }> = ({ user, waStatus, onLogout }) => {
+  const { plansEnabled } = useAuth();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const status = statusInfo(waStatus);
@@ -165,9 +168,16 @@ const UserMenu: React.FC<{ user: AuthUser; waStatus: WaStatus | null; onLogout: 
             {[
               { href: '/send', icon: Send, label: 'Send Messages', hint: 'Single & bulk sending' },
               { href: '/ai', icon: Sparkles, label: 'AI Composer', hint: 'Write messages with AI' },
-              { href: '/pricing', icon: CreditCard, label: 'Plan & billing', hint: 'Usage, upgrade, autopay' },
+              // The admin has no plan; revenue is on the Users page instead
+              ...(user.role === 'owner' || !plansEnabled
+                ? [] as const
+                : [{ href: '/pricing', icon: CreditCard, label: 'Plan & billing', hint: 'Usage, upgrade, autopay' }]),
               ...(user.role === 'owner'
-                ? [{ href: '/scripts', icon: KeyRound, label: 'API key & scripts', hint: 'Automate from your software' }]
+                ? [
+                    { href: '/scripts', icon: KeyRound, label: 'API key & scripts', hint: 'Automate from your software' },
+                    { href: '/users', icon: Users, label: 'Users & payments', hint: 'Accounts, plans, revenue' },
+                    { href: '/settings', icon: Settings, label: 'Settings', hint: 'AI & payment keys, sign-up' },
+                  ]
                 : []),
             ].map((m) => (
               <a key={m.href} role="menuitem" href={m.href} onClick={() => setOpen(false)} className={item}>
@@ -205,7 +215,7 @@ const UserMenu: React.FC<{ user: AuthUser; waStatus: WaStatus | null; onLogout: 
 };
 
 export const Header: React.FC<Props> = ({ route, waStatus }) => {
-  const { user, logout } = useAuth();
+  const { user, logout, plansEnabled } = useAuth();
   const handleLogout = async () => {
     await logout();
     navigate('home');
@@ -213,8 +223,11 @@ export const Header: React.FC<Props> = ({ route, waStatus }) => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const status = statusInfo(waStatus);
-  // The Scripts page is admin-only, so it is left out of the menus for everyone else
-  const navItems = NAV_ITEMS.filter((item) => !ADMIN_ROUTES.includes(item.route) || user?.role === 'owner');
+  // Scripts, Users and Settings are admin-only, so they are left out of the menus for everyone else.
+  // Pricing only shows once paid plans are switched on.
+  const navItems = NAV_ITEMS.filter(
+    (item) => (!ADMIN_ROUTES.includes(item.route) || user?.role === 'owner') && (item.route !== 'pricing' || plansEnabled)
+  );
 
   // Close the mobile menu after navigating
   useEffect(() => setMenuOpen(false), [route]);

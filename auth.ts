@@ -5,12 +5,16 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import type { Express, NextFunction, Request, Response } from 'express';
+import { getSetting, plansEnabled, publicOrigin } from './appSettings';
+import { emailConfigured, emailLayout, sendEmail } from './mailer';
 
 const DATA_DIR = path.resolve(process.env.DATA_DIR || './data');
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
 const SECRET_FILE = path.join(DATA_DIR, 'session-secret');
 const COOKIE = 'wa_session';
 const SESSION_DAYS = 7;
+const RESET_MINUTES = 60;
+const VERIFY_HOURS = 24;
 
 export interface PublicUser {
   id: string;
@@ -27,6 +31,12 @@ interface StoredUser extends PublicUser {
   scenarios?: Scenario[];
   savedMessages?: SavedMessage[];
   billing?: Billing;
+  /** Pending "forgot password" link: SHA-256 of the emailed token (the token itself is never stored) */
+  passwordReset?: { tokenHash: string; expires: number };
+  /** false until the sign-up email link is opened; missing = verified (the first account and older accounts) */
+  emailVerified?: boolean;
+  /** Pending sign-up verification link (hashed like passwordReset) */
+  emailVerification?: { tokenHash: string; expires: number };
 }
 
 // A user-defined AI Composer scenario (name shown in the dropdown, instructions sent to the AI)
@@ -68,6 +78,8 @@ declare global {
   namespace Express {
     interface Request {
       user?: PublicUser;
+      /** How the user was identified: browser session cookie or an API key from a script */
+      authVia?: 'session' | 'apiKey';
     }
   }
 }
@@ -110,10 +122,10 @@ const SECRET = loadSecret();
 
 const toPublic = ({ id, name, email, phone, role }: StoredUser): PublicUser => ({ id, name, email, phone: phone ?? '', role });
 
-// Every account links its own WhatsApp, so sign-up is open by default. ALLOW_REGISTRATION=false closes it
-// (the very first account can always be created).
+// Every account links its own WhatsApp, so sign-up is open by default. ALLOW_REGISTRATION=false (Settings page
+// or .env) closes it (the very first account can always be created).
 export function registrationOpen(): boolean {
-  return loadUsers().length === 0 || process.env.ALLOW_REGISTRATION !== 'false';
+  return loadUsers().length === 0 || getSetting('ALLOW_REGISTRATION') !== 'false';
 }
 
 // Read-modify-write a single user record (used by per-user data such as saved scenarios)
@@ -124,6 +136,11 @@ export function updateUser<T>(userId: string, fn: (user: StoredUser) => T): T | 
   const result = fn(user);
   saveUsers(users);
   return result;
+}
+
+/** Every account for the admin Users page, without password hashes, API keys or reset tokens */
+export function listUsersForAdmin() {
+  return loadUsers().map((u) => ({ ...toPublic(u), createdAt: u.createdAt, billing: u.billing, emailVerified: u.emailVerified !== false }));
 }
 
 export function getUserBilling(userId: string): Billing | undefined {
@@ -170,20 +187,25 @@ function sign(payload: string) {
   return crypto.createHmac('sha256', SECRET).update(payload).digest('base64url');
 }
 
-function createSessionToken(userId: string): string {
-  const payload = Buffer.from(JSON.stringify({ uid: userId, exp: Date.now() + SESSION_DAYS * 86400_000 })).toString('base64url');
+// Short fingerprint of the password hash in every session: resetting the password ends all existing sessions
+const passwordVersion = (user: StoredUser) => crypto.createHash('sha256').update(user.passwordHash).digest('base64url').slice(0, 12);
+
+function createSessionToken(user: StoredUser): string {
+  const payload = Buffer.from(
+    JSON.stringify({ uid: user.id, pv: passwordVersion(user), exp: Date.now() + SESSION_DAYS * 86400_000 })
+  ).toString('base64url');
   return `${payload}.${sign(payload)}`;
 }
 
-function readSessionToken(token: string | undefined): string | null {
+function readSessionToken(token: string | undefined): { uid: string; pv?: string } | null {
   if (!token) return null;
   const [payload, sig] = token.split('.');
   if (!payload || !sig) return null;
   const expected = sign(payload);
   if (sig.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return null;
   try {
-    const { uid, exp } = JSON.parse(Buffer.from(payload, 'base64url').toString());
-    return typeof uid === 'string' && Date.now() < exp ? uid : null;
+    const { uid, pv, exp } = JSON.parse(Buffer.from(payload, 'base64url').toString());
+    return typeof uid === 'string' && Date.now() < exp ? { uid, pv } : null;
   } catch {
     return null;
   }
@@ -228,8 +250,9 @@ function rateLimited(key: string, limit = 10, windowMs = 15 * 60_000): boolean {
 // Resolves the user from the session cookie, or from an API key (Authorization: Bearer / X-API-Key) for scripts
 export function attachUser(req: Request, _res: Response, next: NextFunction) {
   const users = loadUsers();
-  const uid = readSessionToken(parseCookies(req.headers.cookie)[COOKIE]);
-  let user = uid ? users.find((u) => u.id === uid) : undefined;
+  const session = readSessionToken(parseCookies(req.headers.cookie)[COOKIE]);
+  let user = session ? users.find((u) => u.id === session.uid && session.pv === passwordVersion(u)) : undefined;
+  if (user) req.authVia = 'session';
 
   if (!user) {
     const bearer = req.get('authorization')?.match(/^Bearer\s+(\S+)$/i)?.[1];
@@ -238,9 +261,11 @@ export function attachUser(req: Request, _res: Response, next: NextFunction) {
       user = users.find(
         (u) => u.apiKey.length === key.length && crypto.timingSafeEqual(Buffer.from(u.apiKey), Buffer.from(key))
       );
+      if (user) req.authVia = 'apiKey';
     }
   }
-  if (user) req.user = toPublic(user);
+  // Accounts that have not verified their email cannot use the app yet
+  if (user && user.emailVerified !== false) req.user = toPublic(user);
   next();
 }
 
@@ -265,6 +290,46 @@ export function requireJson(req: Request, res: Response, next: NextFunction) {
   next();
 }
 
+// ---------- email links (verification, password reset) ----------
+
+const sha256 = (value: string) => crypto.createHash('sha256').update(value).digest('hex');
+
+/** New one-time link token: the raw token goes in the email, only its hash is stored */
+function newEmailToken(validMs: number) {
+  const token = crypto.randomBytes(32).toString('base64url');
+  return { token, stored: { tokenHash: sha256(token), expires: Date.now() + validMs } };
+}
+
+/** The user whose pending link matches this token and has not expired */
+function findByToken(users: StoredUser[], token: string, field: 'passwordReset' | 'emailVerification') {
+  if (!token) return undefined;
+  const hash = Buffer.from(sha256(token));
+  return users.find((u) => {
+    const pending = u[field];
+    return pending && pending.expires > Date.now() && crypto.timingSafeEqual(Buffer.from(pending.tokenHash), hash);
+  });
+}
+
+/** Creates a fresh verification link for the user (caller saves the users file) and emails it */
+function sendVerificationEmail(req: Request, user: StoredUser) {
+  const { token, stored } = newEmailToken(VERIFY_HOURS * 3600_000);
+  user.emailVerification = stored;
+  const link = `${publicOrigin(req)}/verify-email?token=${token}`;
+  return sendEmail({
+    to: user.email,
+    subject: 'Verify your email for WA Direct Automation',
+    ...emailLayout({
+      heading: 'Confirm your email',
+      paragraphs: [
+        `Hi ${user.name.split(/\s+/)[0]},`,
+        `Thanks for signing up. Confirm this is your email address to activate your account. The link expires in ${VERIFY_HOURS} hours.`,
+      ],
+      button: { label: 'Verify my email', url: link },
+      footer: "If you didn't create an account, you can ignore this email.",
+    }),
+  });
+}
+
 // ---------- routes ----------
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -273,7 +338,7 @@ export function registerAuthRoutes(app: Express, hooks: { onRegister?: (user: Pu
   app.use('/api/auth', requireJson);
 
   app.get('/api/auth/me', (req, res) => {
-    res.json({ user: req.user ?? null, registrationOpen: registrationOpen() });
+    res.json({ user: req.user ?? null, registrationOpen: registrationOpen(), plansEnabled: plansEnabled() });
   });
 
   app.post('/api/auth/register', async (req, res) => {
@@ -297,6 +362,10 @@ export function registerAuthRoutes(app: Express, hooks: { onRegister?: (user: Pu
     }
 
     const users = loadUsers();
+    const isFirst = users.length === 0;
+    if (!isFirst && !emailConfigured()) {
+      return res.status(503).json({ error: 'Sign-up is not available yet. The administrator has to set up email first.' });
+    }
     if (users.some((u) => u.email === email)) {
       return res.status(409).json({ error: 'An account with this email already exists.', field: 'email' });
     }
@@ -309,14 +378,29 @@ export function registerAuthRoutes(app: Express, hooks: { onRegister?: (user: Pu
       name,
       email,
       phone,
-      role: users.length === 0 ? 'owner' : 'member',
+      role: isFirst ? 'owner' : 'member',
       passwordHash: hashPassword(password),
       apiKey: newApiKey(),
       createdAt: new Date().toISOString(),
+      // The first account (the admin) is active immediately; everyone else verifies their email first
+      ...(isFirst ? {} : { emailVerified: false }),
     };
+
+    if (!isFirst) {
+      try {
+        await sendVerificationEmail(req, user);
+      } catch (e: any) {
+        console.error('Verification email failed:', e?.message);
+        return res.status(502).json({ error: 'We could not send the verification email. Please try again in a few minutes.' });
+      }
+      saveUsers([...users, user]);
+      await hooks.onRegister?.(toPublic(user), false);
+      return res.status(201).json({ verificationSent: true, email: user.email });
+    }
+
     saveUsers([...users, user]);
-    await hooks.onRegister?.(toPublic(user), users.length === 0);
-    setSessionCookie(req, res, createSessionToken(user.id));
+    await hooks.onRegister?.(toPublic(user), true);
+    setSessionCookie(req, res, createSessionToken(user));
     res.status(201).json({ user: toPublic(user) });
   });
 
@@ -330,10 +414,111 @@ export function registerAuthRoutes(app: Express, hooks: { onRegister?: (user: Pu
     const user = loadUsers().find((u) => u.email === email);
     const ok = verifyPassword(password, user?.passwordHash ?? DUMMY_HASH) && Boolean(user);
     if (!ok || !user) return res.status(401).json({ error: 'Incorrect email or password.' });
+    if (user.emailVerified === false) {
+      return res.status(403).json({
+        error: `Please verify your email first. We sent a link to ${user.email}.`,
+        needsVerification: true,
+      });
+    }
 
     attempts.delete(`login:${req.ip}:${email}`);
-    setSessionCookie(req, res, createSessionToken(user.id));
+    setSessionCookie(req, res, createSessionToken(user));
     res.json({ user: toPublic(user) });
+  });
+
+  // Forgot password: emails a one-time reset link. The reply is the same whether or not the email has an account,
+  // and the email is sent in the background, so the response time doesn't reveal it either.
+  app.post('/api/auth/forgot-password', (req, res) => {
+    const email = String(req.body?.email ?? '').trim().toLowerCase();
+    if (rateLimited(`forgot:${req.ip}`, 5) || rateLimited(`forgot:${email}`, 3)) {
+      return res.status(429).json({ error: 'Too many requests. Try again in 15 minutes.' });
+    }
+    if (!EMAIL_RE.test(email)) return res.status(400).json({ error: 'Enter a valid email address.', field: 'email' });
+    if (!emailConfigured()) {
+      return res.status(503).json({ error: 'Password reset by email is not available yet. Please contact the administrator.' });
+    }
+
+    const users = loadUsers();
+    const user = users.find((u) => u.email === email);
+    if (user) {
+      const { token, stored } = newEmailToken(RESET_MINUTES * 60_000);
+      user.passwordReset = stored;
+      saveUsers(users);
+      const link = `${publicOrigin(req)}/reset-password?token=${token}`;
+      sendEmail({
+        to: user.email,
+        subject: 'Reset your WA Direct Automation password',
+        ...emailLayout({
+          heading: 'Reset your password',
+          paragraphs: [
+            `Hi ${user.name.split(/\s+/)[0]},`,
+            `We received a request to reset the password for your account. The link works once and expires in ${RESET_MINUTES} minutes.`,
+          ],
+          button: { label: 'Choose a new password', url: link },
+          footer: "If you didn't ask for this, you can ignore this email. Your password won't change.",
+        }),
+      }).catch((e) => console.error('Password reset email failed:', e?.message));
+    }
+    res.json({ success: true });
+  });
+
+  // Sets a new password from a reset link, then logs in. Every other session of the account is ended.
+  app.post('/api/auth/reset-password', (req, res) => {
+    const token = String(req.body?.token ?? '');
+    const password = String(req.body?.password ?? '');
+    if (rateLimited(`reset:${req.ip}`)) return res.status(429).json({ error: 'Too many attempts. Try again in 15 minutes.' });
+    if (password.length < 8 || password.length > 200) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters.', field: 'password' });
+    }
+
+    const users = loadUsers();
+    const user = findByToken(users, token, 'passwordReset');
+    if (!user) return res.status(400).json({ error: 'This reset link is invalid or has expired. Request a new one.' });
+
+    user.passwordHash = hashPassword(password);
+    delete user.passwordReset;
+    // The link arrived by email, so the address is confirmed too
+    delete user.emailVerified;
+    delete user.emailVerification;
+    saveUsers(users);
+    attempts.delete(`reset:${req.ip}`);
+    setSessionCookie(req, res, createSessionToken(user));
+    res.json({ user: toPublic(user) });
+  });
+
+  // Sign-up verification link: activates the account and logs in
+  app.post('/api/auth/verify-email', (req, res) => {
+    const token = String(req.body?.token ?? '');
+    if (rateLimited(`verify:${req.ip}`)) return res.status(429).json({ error: 'Too many attempts. Try again in 15 minutes.' });
+    const users = loadUsers();
+    const user = findByToken(users, token, 'emailVerification');
+    if (!user) {
+      return res.status(400).json({ error: 'This verification link is invalid or has expired. Log in to get a new one.', expired: true });
+    }
+    delete user.emailVerified;
+    delete user.emailVerification;
+    saveUsers(users);
+    attempts.delete(`verify:${req.ip}`);
+    setSessionCookie(req, res, createSessionToken(user));
+    res.json({ user: toPublic(user) });
+  });
+
+  // Sends a new verification link. Same reply whether or not the account exists or is already verified.
+  app.post('/api/auth/resend-verification', async (req, res) => {
+    const email = String(req.body?.email ?? '').trim().toLowerCase();
+    if (rateLimited(`resend:${req.ip}`, 5) || rateLimited(`resend:${email}`, 3)) {
+      return res.status(429).json({ error: 'Too many requests. Try again in 15 minutes.' });
+    }
+    if (!EMAIL_RE.test(email)) return res.status(400).json({ error: 'Enter a valid email address.', field: 'email' });
+    if (!emailConfigured()) return res.status(503).json({ error: 'Email is not set up yet. Please contact the administrator.' });
+
+    const users = loadUsers();
+    const user = users.find((u) => u.email === email && u.emailVerified === false);
+    if (user) {
+      sendVerificationEmail(req, user).catch((e) => console.error('Verification email failed:', e?.message));
+      saveUsers(users);
+    }
+    res.json({ success: true });
   });
 
   app.post('/api/auth/logout', (req, res) => {

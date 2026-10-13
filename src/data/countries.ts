@@ -257,8 +257,6 @@ export const DEFAULT_COUNTRY = 'IN';
 
 export const dialCode = (iso: string) => COUNTRIES.find((c) => c.iso === iso)?.code ?? '91';
 
-const chipCls = 'flex h-5 w-7 shrink-0 items-center justify-center rounded-md bg-slate-100 text-[10px] font-bold tracking-wide text-slate-600';
-
 // Options for the searchable <Select> (India first, then A–Z)
 export function countryOptions(labelStyle: 'code-first' | 'name-first' = 'code-first') {
   return COUNTRIES.map((c) => ({
@@ -266,7 +264,5 @@ export function countryOptions(labelStyle: 'code-first' | 'name-first' = 'code-f
     label: labelStyle === 'code-first' ? `+${c.code} ${c.name}` : `${c.name} (+${c.code})`,
     short: `+${c.code}`,
     keywords: `${c.iso} +${c.code} ${c.code}`,
-    iconText: c.iso,
-    iconClassName: chipCls,
   }));
 }

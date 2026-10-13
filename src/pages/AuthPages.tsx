@@ -1,17 +1,18 @@
 import React, { useEffect, useState } from 'react';
-import { AlertCircle, ArrowLeft, ArrowRight, Eye, EyeOff, Loader2, Sparkles, Wand2 } from 'lucide-react';
-import { AuthError, useAuth } from '../auth/AuthContext';
-import { navigate, routeFromPath } from '../hooks/useRoute';
+import { ArrowLeft, ArrowRight, CheckCircle2, Eye, EyeOff, Loader2, MailCheck, RefreshCw, Sparkles, Wand2 } from 'lucide-react';
+import { AuthError, postJson, useAuth } from '../auth/AuthContext';
+import { AUTH_ROUTES, navigate, routeFromPath } from '../hooks/useRoute';
 import { Select } from '../components/Select';
 import { countryOptions, DEFAULT_COUNTRY, dialCode } from '../data/countries';
 import { btnPrimary } from '../components/ui';
 import { Logo } from '../components/Logo';
+import { toast } from '../components/Toast';
 
 // Where to go after signing in: the ?next= path when it is a safe same-site page, otherwise Send Messages
 function goNext() {
   const next = new URLSearchParams(window.location.search).get('next') || '/send';
   const route = next.startsWith('/') && !next.startsWith('//') ? routeFromPath(next) : null;
-  navigate(route && route !== 'login' && route !== 'register' ? route : 'send');
+  navigate(route && !AUTH_ROUTES.includes(route) ? route : 'send');
 }
 
 // Carries ?next= across the login/register switch. Read after mount so SSR and hydration markup match.
@@ -257,11 +258,6 @@ const SubmitButton: React.FC<{ busy: boolean; children: React.ReactNode }> = ({ 
   </button>
 );
 
-const ErrorBox: React.FC<{ message: string }> = ({ message }) => (
-  <div role="alert" className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">
-    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /> {message}
-  </div>
-);
 
 function usePasswordToggle() {
   const [show, setShow] = useState(false);
@@ -291,6 +287,80 @@ function generatePassword(length = 16) {
   return chars.join('');
 }
 
+const SuccessBox: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <div role="status" className="flex items-start gap-2 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" /> <span>{children}</span>
+  </div>
+);
+
+// Password strength bar shared by sign-up and reset
+const PasswordStrength: React.FC<{ password: string }> = ({ password }) => {
+  const strength =
+    password.length === 0 ? 0 : password.length < 8 ? 1 : password.length >= 12 && /\d/.test(password) && /[^a-zA-Z0-9]/.test(password) ? 3 : 2;
+  const strengthLabel = ['At least 8 characters', 'Too short', 'Good', 'Strong'][strength];
+  const strengthColor = ['', 'bg-red-400', 'bg-amber-400', 'bg-green-500'][strength];
+  return (
+    <div className="mt-2 flex items-center gap-2 text-xs text-slate-500">
+      <span className="flex flex-1 gap-1">
+        {[1, 2, 3].map((i) => (
+          <span key={i} className={`h-1 flex-1 rounded-full ${i <= strength ? strengthColor : 'bg-slate-200'}`} />
+        ))}
+      </span>
+      <span className={strength === 3 ? 'font-medium text-green-700' : ''}>{strengthLabel}</span>
+    </div>
+  );
+};
+
+const GenerateButton: React.FC<{ onGenerate: (password: string) => void }> = ({ onGenerate }) => (
+  <button
+    type="button"
+    onClick={() => onGenerate(generatePassword())}
+    className="inline-flex items-center gap-1 text-sm font-semibold text-green-700 hover:text-green-800"
+  >
+    <Wand2 className="h-3.5 w-3.5" /> Generate
+  </button>
+);
+
+// "Check your inbox" panel after sign-up (or a login before verifying), with a resend button
+const VerifyEmailNotice: React.FC<{ email: string }> = ({ email }) => {
+  const [busy, setBusy] = useState(false);
+  const resend = async () => {
+    setBusy(true);
+    try {
+      await postJson('/api/auth/resend-verification', { email });
+      toast.success(`A new verification link was sent to ${email}.`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not send the email');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="rounded-2xl border border-green-200 bg-green-50 p-5">
+      <div className="flex items-start gap-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-green-500 to-emerald-600 text-white shadow-md shadow-green-600/30">
+          <MailCheck className="h-5 w-5" />
+        </span>
+        <div className="space-y-1 text-sm text-slate-700">
+          <div className="font-semibold text-navy-900">Check your inbox</div>
+          <p>
+            We sent a verification link to <strong className="break-all">{email}</strong>. Open it to activate your account. The link
+            expires in 24 hours; check the spam folder if you don't see it.
+          </p>
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={resend}
+        disabled={busy}
+        className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-green-700 hover:text-green-800 disabled:opacity-50"
+      >
+        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Resend verification email
+      </button>
+    </div>
+  );
+};
+
 const SwitchLink: React.FC<{ text: string; label: string; href: string }> = ({ text, label, href }) => (
   <p className="mt-5 text-sm text-slate-600">
     {text}{' '}
@@ -308,18 +378,18 @@ export const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
+  const [unverified, setUnverified] = useState('');
   const pw = usePasswordToggle();
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
-    setError('');
     try {
       await login(email, password);
       goNext();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed');
+      if (err instanceof AuthError && err.data.needsVerification) setUnverified(email.trim().toLowerCase());
+      toast.error(err instanceof Error ? err.message : 'Login failed');
     } finally {
       setBusy(false);
     }
@@ -327,8 +397,12 @@ export const LoginPage: React.FC = () => {
 
   return (
     <AuthLayout title="Welcome back" subtitle="Log in to send messages from your linked WhatsApp.">
+      {unverified && (
+        <div className="mb-5">
+          <VerifyEmailNotice email={unverified} />
+        </div>
+      )}
       <form onSubmit={submit} className="space-y-4" noValidate>
-        {error && <ErrorBox message={error} />}
         <Field id="login-email" label="Email" type="email" value={email} onChange={setEmail} placeholder="you@example.com" autoComplete="email" />
         <Field
           id="login-password"
@@ -339,6 +413,11 @@ export const LoginPage: React.FC = () => {
           placeholder="Enter your password"
           autoComplete="current-password"
           trailing={pw.toggle}
+          action={
+            <a href="/forgot-password" className="text-sm font-semibold text-green-700 hover:text-green-800">
+              Forgot password?
+            </a>
+          }
         />
         <div className="pt-1">
           <SubmitButton busy={busy}>Log in</SubmitButton>
@@ -358,23 +437,35 @@ export const RegisterPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<{ message: string; field?: string } | null>(null);
+  const [errorField, setErrorField] = useState<string | undefined>();
+  const [sentTo, setSentTo] = useState('');
   const pw = usePasswordToggle();
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
-    setError(null);
+    setErrorField(undefined);
     try {
       const digits = mobile.replace(/[^0-9]/g, '').replace(/^0+/, '');
-      await register({ name, email, password, phone: `${dialCode(countryIso)}${digits}` });
-      goNext();
+      const result = await register({ name, email, password, phone: `${dialCode(countryIso)}${digits}` });
+      if (result.verificationSentTo) setSentTo(result.verificationSentTo);
+      else goNext();
     } catch (err) {
-      setError(err instanceof AuthError ? { message: err.message, field: err.field } : { message: 'Registration failed' });
+      setErrorField(err instanceof AuthError ? err.field : undefined);
+      toast.error(err instanceof Error ? err.message : 'Registration failed');
     } finally {
       setBusy(false);
     }
   };
+
+  if (sentTo) {
+    return (
+      <AuthLayout title="Verify your email" subtitle="One last step before you can start sending messages.">
+        <VerifyEmailNotice email={sentTo} />
+        <SwitchLink text="Already verified?" label="Log in" href={withNext('/login')} />
+      </AuthLayout>
+    );
+  }
 
   if (!registrationOpen) {
     return (
@@ -384,15 +475,9 @@ export const RegisterPage: React.FC = () => {
     );
   }
 
-  const strength =
-    password.length === 0 ? 0 : password.length < 8 ? 1 : password.length >= 12 && /\d/.test(password) && /[^a-zA-Z0-9]/.test(password) ? 3 : 2;
-  const strengthLabel = ['At least 8 characters', 'Too short', 'Good', 'Strong'][strength];
-  const strengthColor = ['', 'bg-red-400', 'bg-amber-400', 'bg-green-500'][strength];
-
   return (
     <AuthLayout title="Create account" subtitle="Free account required to send messages. You'll link your WhatsApp next.">
       <form onSubmit={submit} className="space-y-4" noValidate>
-        {error && <ErrorBox message={error.message} />}
         <div className="grid gap-4 sm:grid-cols-2">
           <Field
             id="reg-name"
@@ -402,9 +487,9 @@ export const RegisterPage: React.FC = () => {
             onChange={setName}
             placeholder="Your full name"
             autoComplete="name"
-            invalid={error?.field === 'name'}
+            invalid={errorField === 'name'}
           />
-          <PhoneField code={countryIso} setCode={setCountryIso} number={mobile} setNumber={setMobile} invalid={error?.field === 'phone'} />
+          <PhoneField code={countryIso} setCode={setCountryIso} number={mobile} setNumber={setMobile} invalid={errorField === 'phone'} />
         </div>
         <Field
           id="reg-email"
@@ -414,7 +499,7 @@ export const RegisterPage: React.FC = () => {
           onChange={setEmail}
           placeholder="you@example.com"
           autoComplete="email"
-          invalid={error?.field === 'email'}
+          invalid={errorField === 'email'}
         />
         <div>
           <Field
@@ -425,35 +510,163 @@ export const RegisterPage: React.FC = () => {
             onChange={setPassword}
             placeholder="Create a password"
             autoComplete="new-password"
-            invalid={error?.field === 'password'}
+            invalid={errorField === 'password'}
             trailing={pw.toggle}
             action={
-              <button
-                type="button"
-                onClick={() => {
-                  setPassword(generatePassword());
+              <GenerateButton
+                onGenerate={(p) => {
+                  setPassword(p);
                   pw.setShow(true);
                 }}
-                className="inline-flex items-center gap-1 text-sm font-semibold text-green-700 hover:text-green-800"
-              >
-                <Wand2 className="h-3.5 w-3.5" /> Generate
-              </button>
+              />
             }
           />
-          <div className="mt-2 flex items-center gap-2 text-xs text-slate-500">
-            <span className="flex flex-1 gap-1">
-              {[1, 2, 3].map((i) => (
-                <span key={i} className={`h-1 flex-1 rounded-full ${i <= strength ? strengthColor : 'bg-slate-200'}`} />
-              ))}
-            </span>
-            <span className={strength === 3 ? 'font-medium text-green-700' : ''}>{strengthLabel}</span>
-          </div>
+          <PasswordStrength password={password} />
         </div>
         <div className="pt-1">
           <SubmitButton busy={busy}>Create account</SubmitButton>
         </div>
       </form>
       <SwitchLink text="Already have an account?" label="Log in" href={withNext('/login')} />
+    </AuthLayout>
+  );
+};
+
+export const ForgotPasswordPage: React.FC = () => {
+  const [email, setEmail] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [sentTo, setSentTo] = useState('');
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      await postJson('/api/auth/forgot-password', { email });
+      setSentTo(email.trim());
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Something went wrong');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <AuthLayout title="Forgot password?" subtitle="Enter your account email and we'll send you a link to choose a new password.">
+      {sentTo ? (
+        <SuccessBox>
+          If an account exists for <strong>{sentTo}</strong>, a reset link is on its way. It expires in 60 minutes. Check your spam folder if it
+          doesn't arrive in a few minutes.
+        </SuccessBox>
+      ) : (
+        <form onSubmit={submit} className="space-y-4" noValidate>
+          <Field id="forgot-email" label="Email" type="email" value={email} onChange={setEmail} placeholder="you@example.com" autoComplete="email" />
+          <div className="pt-1">
+            <SubmitButton busy={busy}>Send reset link</SubmitButton>
+          </div>
+        </form>
+      )}
+      <SwitchLink text="Remembered it?" label="Back to log in" href="/login" />
+    </AuthLayout>
+  );
+};
+
+export const ResetPasswordPage: React.FC = () => {
+  const { resetPassword } = useAuth();
+  // Read after mount (SSR has no URL search), then removed from the address bar so it isn't kept in history
+  const [token, setToken] = useState<string | null>(null);
+  const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  const pw = usePasswordToggle();
+
+  useEffect(() => {
+    setToken(new URLSearchParams(window.location.search).get('token') ?? '');
+    window.history.replaceState(null, '', '/reset-password');
+  }, []);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      await resetPassword(token ?? '', password);
+      navigate('send');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not reset the password');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (token === '') {
+    return (
+      <AuthLayout title="Link not valid" subtitle="This page needs the reset link from your email.">
+        <SwitchLink text="Need a new link?" label="Request one" href="/forgot-password" />
+      </AuthLayout>
+    );
+  }
+
+  return (
+    <AuthLayout title="Choose a new password" subtitle="After saving you'll be logged in, and any other device using this account is logged out.">
+      <form onSubmit={submit} className="space-y-4" noValidate>
+        <div>
+          <Field
+            id="reset-password"
+            label="New password"
+            type={pw.type}
+            value={password}
+            onChange={setPassword}
+            placeholder="Create a new password"
+            autoComplete="new-password"
+            trailing={pw.toggle}
+            action={
+              <GenerateButton
+                onGenerate={(p) => {
+                  setPassword(p);
+                  pw.setShow(true);
+                }}
+              />
+            }
+          />
+          <PasswordStrength password={password} />
+        </div>
+        <div className="pt-1">
+          <SubmitButton busy={busy || token === null}>Save password</SubmitButton>
+        </div>
+      </form>
+      <SwitchLink text="Link expired?" label="Request a new one" href="/forgot-password" />
+    </AuthLayout>
+  );
+};
+
+export const VerifyEmailPage: React.FC = () => {
+  const { verifyEmail } = useAuth();
+  const [error, setError] = useState('');
+
+  // Verify as soon as the page opens; the token is removed from the address bar first
+  useEffect(() => {
+    const token = new URLSearchParams(window.location.search).get('token') ?? '';
+    window.history.replaceState(null, '', '/verify-email');
+    if (!token) return setError('This page needs the verification link from your email.');
+    verifyEmail(token)
+      .then(() => {
+        toast.success('Email verified. Welcome aboard!');
+        navigate('send');
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : 'Could not verify the email'));
+  }, [verifyEmail]);
+
+  if (error) {
+    return (
+      <AuthLayout title="Link not valid" subtitle={error}>
+        <SwitchLink text="Need a new link?" label="Log in to resend it" href="/login" />
+      </AuthLayout>
+    );
+  }
+
+  return (
+    <AuthLayout title="Verifying your email…" subtitle="This only takes a moment.">
+      <div className="flex items-center gap-2 text-sm text-slate-500">
+        <Loader2 className="h-4 w-4 animate-spin" /> Activating your account
+      </div>
     </AuthLayout>
   );
 };
